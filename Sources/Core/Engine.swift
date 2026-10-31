@@ -166,6 +166,9 @@ final class LiveEngine: @unchecked Sendable {
     private var takeOpen: [Int: Int] = [:]          // note -> index dans takeNotes
     private let takeLock = NSLock()
 
+    /// Nombre d'appels du bloc de rendu : sert à vérifier que le périphérique
+    /// tourne vraiment avant de déclarer la sortie prête.
+    private let renderCount = UnsafeMutablePointer<Int>.allocate(capacity: 1)
     private let peakPtr = UnsafeMutablePointer<Float>.allocate(capacity: 2)
     private let midiStampPtr = UnsafeMutablePointer<Double>.allocate(capacity: 1)
     private(set) var midiSourceNames: [String] = []
@@ -173,6 +176,11 @@ final class LiveEngine: @unchecked Sendable {
     private(set) var audioDeviceLabel = "—"
     var onSetupChanged: (() -> Void)?
     private var connected = Set<MIDIEndpointRef>()
+    private var audioWatcherInstalled = false
+    /// Quand un clavier apparaît et qu'il sait aussi recevoir l'audio, on bascule
+    /// la sortie dessus. C'est ce qu'on veut sur scène : brancher, et jouer.
+    var followKeyboardOutput = true
+    private(set) var lastSwitchNote: String?
     private(set) var statusAudio = "—"
     private(set) var bufferFramesRunning: UInt32 = 0
     private(set) var sampleRate: Double = 44100
@@ -190,6 +198,7 @@ final class LiveEngine: @unchecked Sendable {
         self.masterVolume = config.masterVolume
         peakPtr[0] = 0; peakPtr[1] = 0
         midiStampPtr.pointee = 0
+        renderCount.pointee = 0
     }
 
     // MARK: Démarrage
@@ -265,6 +274,7 @@ final class LiveEngine: @unchecked Sendable {
         let peakOut = peakPtr
         let micIn = mic
         let rec = audioRecorder
+        let rendered = renderCount
         dsp.limiterEnabled = false        // le limiteur est désormais en bout de chaîne
         let node = AVAudioSourceNode(format: fmt) { _, _, frameCount, ablPtr -> OSStatus in
             let bufs = UnsafeMutableAudioBufferListPointer(ablPtr)
@@ -272,6 +282,7 @@ final class LiveEngine: @unchecked Sendable {
                   let l = bufs[0].mData?.assumingMemoryBound(to: Float.self),
                   let r = bufs[1].mData?.assumingMemoryBound(to: Float.self) else { return noErr }
             let n = Int(frameCount)
+            rendered.pointee &+= 1
             fluid_synth_write_float(sy, Int32(n), l, 0, 1, r, 0, 1)
             dsp.process(l, r, frames: n)
             micIn.mix(into: l, r, frames: n)
@@ -295,7 +306,29 @@ final class LiveEngine: @unchecked Sendable {
         sourceNode = node
         engine.attach(node)
         engine.connect(node, to: out, format: fmt)
-        try engine.start()
+
+        // Un périphérique qu'un autre client vient de relâcher accepte le
+        // démarrage sans erreur mais ne fait jamais tourner le rendu : on
+        // n'entend rien, indéfiniment. On vérifie donc que le bloc de rendu
+        // est bien appelé, et on réessaie sinon.
+        var attempt = 0
+        while true {
+            attempt += 1
+            renderCount.pointee = 0
+            try engine.start()
+            var waited = 0
+            while renderCount.pointee == 0 && waited < 60 {
+                usleep(10_000); waited += 1          // jusqu'à 600 ms
+            }
+            if renderCount.pointee > 0 { break }
+            engine.stop()
+            guard attempt < 4 else {
+                throw Err("la sortie « \(target.1) » ne démarre pas — elle est peut-être encore utilisée par une autre application")
+            }
+            usleep(300_000)
+        }
+        if attempt > 1 { lastSwitchNote = "Sortie « \(target.1) » démarrée au bout de \(attempt) tentatives" }
+
         if CA.bufferFrames(deviceID) != config.bufferFrames {
             CA.setBufferFrames(deviceID, config.bufferFrames)
         }
@@ -306,9 +339,12 @@ final class LiveEngine: @unchecked Sendable {
         mic.chain.sampleRate = Float(sr)
     }
 
+    /// À appeler depuis le thread principal : CoreMIDI délivre ses notifications
+    /// de branchement sur la run loop du thread qui a créé le client. Créé depuis
+    /// une tâche de fond, le client n'en reçoit aucune et le branchement à chaud
+    /// ne marche pas.
     func startMIDI() {
-        // Le bloc de notification permet de rebrancher un clavier à chaud :
-        // on relance la détection sans quitter l'application.
+        assert(Thread.isMainThread, "startMIDI doit être appelé sur le thread principal")
         MIDIClientCreateWithBlock("PianoLiveSetup" as CFString, &midiClient) { [weak self] notif in
             if notif.pointee.messageID == .msgSetupChanged {
                 DispatchQueue.main.async { self?.rescanMIDI() }
@@ -340,6 +376,42 @@ final class LiveEngine: @unchecked Sendable {
             }
         }
         rescanMIDI()
+        installAudioWatcher()
+    }
+
+    /// La carte son d'un piano n'apparaît qu'à son allumage : on surveille aussi
+    /// la liste des périphériques audio, pas seulement les ports MIDI.
+    private func installAudioWatcher() {
+        guard !audioWatcherInstalled else { return }
+        var addr = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDevices,
+                                              mScope: kAudioObjectPropertyScopeGlobal,
+                                              mElement: kAudioObjectPropertyElementMain)
+        let st = AudioObjectAddPropertyListenerBlock(
+            AudioObjectID(kAudioObjectSystemObject), &addr, DispatchQueue.main) { [weak self] _, _ in
+                self?.followKeyboardIfPossible()
+            }
+        audioWatcherInstalled = (st == noErr)
+    }
+
+    /// Si un clavier est branché et qu'il se présente aussi comme carte son,
+    /// on y envoie le son — sauf si l'utilisateur a choisi une autre sortie.
+    func followKeyboardIfPossible() {
+        guard followKeyboardOutput, !midiSourceNames.isEmpty else { onSetupChanged?(); return }
+        let outs = CA.outputDevices()
+        for name in midiSourceNames {
+            let key = name.lowercased()
+            guard let match = outs.first(where: {
+                let d = $0.1.lowercased()
+                return d.contains(key) || key.contains(d)
+            }) else { continue }
+            if match.1 != audioDeviceLabel {
+                if switchAudioDevice(named: match.1) {
+                    lastSwitchNote = "Sortie basculée sur « \(match.1) »"
+                }
+            }
+            break
+        }
+        onSetupChanged?()
     }
 
     private func currentMIDISourceNames() -> [String] {
@@ -355,6 +427,7 @@ final class LiveEngine: @unchecked Sendable {
     /// Se connecte à toutes les sources MIDI matérielles, quel que soit le fabricant,
     /// et retient la destination correspondante pour le Local Control.
     func rescanMIDI() {
+        let hadNoKeyboard = midiSourceNames.isEmpty
         var names: [String] = []
         for i in 0..<MIDIGetNumberOfSources() {
             let src = MIDIGetSource(i)
@@ -394,8 +467,16 @@ final class LiveEngine: @unchecked Sendable {
             }
         }
         if config.localControlOff && pianoDestination != 0 { setPianoLocalControl(false) }
-        onSetupChanged?()
+        if hadNoKeyboard && !names.isEmpty {
+            // Un clavier vient d'apparaître : on prend la main sur la sortie audio.
+            followKeyboardIfPossible()
+        } else {
+            onSetupChanged?()
+        }
     }
+
+    /// Vrai quand aucun clavier matériel n'est visible.
+    var hasKeyboard: Bool { !midiSourceNames.isEmpty }
 
     // MARK: Local Control du piano
 
@@ -592,6 +673,7 @@ final class LiveEngine: @unchecked Sendable {
     }
 
     func rememberCurrent(_ name: String) { config.currentPreset = name }
+    func clearSwitchNote() { lastSwitchNote = nil }
 
     var heldNotes: Int { noteLock.lock(); defer { noteLock.unlock() }; return sounding.count }
 

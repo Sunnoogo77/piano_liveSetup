@@ -34,8 +34,10 @@ arrière-plan suffit à faire craquer une sortie à 2,9 ms.
 
 ### Je viens de quitter l'app, je la relance et il n'y a plus de son
 
-Le périphérique audio met un instant à se libérer. Quittez, attendez deux ou trois
-secondes, puis rouvrez.
+L'application gère ce cas : elle vérifie que la sortie tourne vraiment et réessaie
+jusqu'à quatre fois. Si malgré tout elle affiche « la sortie ne démarre pas », c'est
+qu'une autre application tient le périphérique — fermez-la, ou choisissez une autre
+sortie dans l'onglet Périphériques.
 
 ### L'application met longtemps à s'ouvrir
 

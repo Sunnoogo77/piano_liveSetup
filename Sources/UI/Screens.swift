@@ -67,6 +67,47 @@ struct KeyboardView: View {
     }
 }
 
+// MARK: - Bandeau « en attente d'un clavier »
+
+/// Affiché tant qu'aucun clavier n'est visible. Le reste de l'application
+/// fonctionne : on peut visiter les écrans, régler l'égaliseur, écouter ses
+/// prises. Seul le jeu attend l'instrument.
+struct WaitingForKeyboard: View {
+    @State private var pulse = false
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle().fill(Tone.warn.opacity(0.18)).frame(width: 40, height: 40)
+                    .scaleEffect(pulse ? 1.25 : 1).opacity(pulse ? 0 : 1)
+                Circle().fill(Tone.warn.opacity(0.16)).frame(width: 40, height: 40)
+                Image(systemName: "pianokeys")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(Tone.warn)
+            }
+            .frame(width: 44, height: 44)
+            .onAppear {
+                withAnimation(.easeOut(duration: 1.6).repeatForever(autoreverses: false)) { pulse = true }
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("En attente d'un clavier")
+                    .font(.system(size: 15, weight: .semibold)).foregroundStyle(Tone.txt0)
+                Text("Branchez le piano en USB et allumez-le. Il sera pris en main tout seul : "
+                     + "son interne coupé, et le son envoyé dans ses haut-parleurs s'il sait les recevoir.")
+                    .font(.system(size: 11.5)).foregroundStyle(Tone.txt1)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .background(Tone.warn.opacity(0.07),
+                    in: RoundedRectangle(cornerRadius: Metric.radiusL, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Metric.radiusL, style: .continuous)
+            .strokeBorder(Tone.warn.opacity(0.32), lineWidth: 1))
+    }
+}
+
 // MARK: - Affichage d'accord
 
 struct ChordBadge: View {
@@ -116,6 +157,7 @@ struct PlayScreen: View {
         GeometryReader { geo in
             let wide = geo.size.width >= 980
             VStack(spacing: Metric.gap) {
+                if !m.hasKeyboard { WaitingForKeyboard() }
                 HStack(alignment: .top, spacing: Metric.gap) {
                     Panel {
                         ChordBadge(chord: m.chord)

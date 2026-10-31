@@ -49,6 +49,9 @@ final class RigModel: ObservableObject {
     @Published var tremDepth: Float = 0
     @Published var comp: Float = 0
     @Published var localSilenced = true
+    @Published var hasKeyboard = false
+    @Published var deviceNote: String?
+    @Published var followOutput = true
     @Published var search = ""
     @Published var categoryFilter: Category? = nil
 
@@ -118,8 +121,11 @@ final class RigModel: ObservableObject {
                     }
                 }
                 try engine.startAudio()
-                engine.startMIDI()
-                await MainActor.run { [weak self] in self?.finishBoot() }
+                // startMIDI doit être sur le thread principal : voir son commentaire.
+                await MainActor.run { [weak self] in
+                    engine.startMIDI()
+                    self?.finishBoot()
+                }
             } catch {
                 await MainActor.run { [weak self] in self?.fatalError = error.localizedDescription }
             }
@@ -132,12 +138,24 @@ final class RigModel: ObservableObject {
         engine.resetTranspose()
         engine.setMasterVolume(master)
         if engine.canControlPianoLocal { engine.setPianoLocalControl(false) }
-        localSilenced = engine.canControlPianoLocal
+        localSilenced = engine.config.localControlOff
+        hasKeyboard = engine.hasKeyboard
+        followOutput = engine.followKeyboardOutput
         syncFromEngine(startIndex)
         refreshTakes()
         refreshDevices()
         engine.onSetupChanged = { [weak self] in
-            MainActor.assumeIsolated { self?.objectWillChange.send() }
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.hasKeyboard = self.engine.hasKeyboard
+                self.localSilenced = self.engine.config.localControlOff
+                self.refreshDevices()
+                if let note = self.engine.lastSwitchNote {
+                    self.deviceNote = note
+                    self.engineClearSwitchNote()
+                }
+                self.objectWillChange.send()
+            }
         }
         ready = true
         Timer.scheduledTimer(withTimeInterval: 1.0 / 24, repeats: true) { [weak self] _ in
@@ -154,6 +172,7 @@ final class RigModel: ObservableObject {
         holdR = max(r, holdR - 0.35)
         held = engine.heldNotes
         midiLive = engine.secondsSinceLastNote < 0.5
+        if hasKeyboard != engine.hasKeyboard { hasKeyboard = engine.hasKeyboard }
 
         let notes = engine.soundingNotes
         if notes != sounding {
@@ -214,6 +233,14 @@ final class RigModel: ObservableObject {
     func openFile(_ url: URL) { NSWorkspace.shared.open(url) }
 
     // MARK: Périphériques
+
+    func engineClearSwitchNote() { engine.clearSwitchNote() }
+
+    func setFollowOutput(_ on: Bool) {
+        followOutput = on
+        engine.followKeyboardOutput = on
+        if on { engine.followKeyboardIfPossible() }
+    }
 
     func refreshDevices() {
         audioDevices = CA.outputDevices().map { $0.1 }

@@ -160,7 +160,7 @@ struct DevicesScreen: View {
                         VStack(alignment: .leading, spacing: 9) {
                             if m.engine.midiSourceNames.isEmpty {
                                 row("exclamationmark.triangle", "Aucun clavier détecté", Tone.warn)
-                                Text("Branchez le piano en USB : il est reconnu automatiquement, quelle que soit la marque.")
+                                Text("Branchez le piano en USB et allumez-le. La détection est permanente : dès qu'il apparaît, l'application s'y connecte, coupe son son interne et bascule la sortie audio dessus s'il sait la recevoir. Rien à faire de votre côté.")
                                     .font(.system(size: 10.5)).foregroundStyle(Tone.txt2)
                                     .fixedSize(horizontal: false, vertical: true)
                             } else {
@@ -207,7 +207,14 @@ struct DevicesScreen: View {
                                 }
                                 .buttonStyle(.plain)
                             }
-                            Text("Beaucoup de pianos numériques renvoient le son du Mac dans leurs haut-parleurs par le câble USB. Quand c'est le cas, cette sortie est choisie toute seule.")
+                            Divider().overlay(Tone.line)
+                            Toggle(isOn: Binding(get: { m.followOutput },
+                                                 set: { m.setFollowOutput($0) })) {
+                                Text("Suivre le clavier automatiquement")
+                                    .font(.system(size: 11)).foregroundStyle(Tone.txt1)
+                            }
+                            .toggleStyle(.switch).tint(Tone.accent)
+                            Text("Beaucoup de pianos numériques renvoient le son du Mac dans leurs haut-parleurs par le câble USB. Quand c'est le cas et que cette option est active, la sortie bascule dessus dès que l'instrument est allumé. Décochez-la pour imposer votre propre choix — par exemple un micro virtuel pour Teams ou Zoom.")
                                 .font(.system(size: 10)).foregroundStyle(Tone.txt2)
                                 .fixedSize(horizontal: false, vertical: true)
                         }

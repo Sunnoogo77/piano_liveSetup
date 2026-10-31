@@ -242,9 +242,11 @@ struct StageView: View {
                         Circle().fill(Tone.hot).frame(width: 7, height: 7)
                         Caption(text: "REC", color: Tone.hot)
                     }
-                    Circle().fill(m.midiLive ? Tone.ok : Tone.txt2.opacity(0.3))
+                    Circle().fill(!m.hasKeyboard ? Tone.warn
+                                  : (m.midiLive ? Tone.ok : Tone.txt2.opacity(0.3)))
                         .frame(width: 6, height: 6)
-                    Caption(text: "MIDI", color: m.midiLive ? Tone.ok : Tone.txt2)
+                    Caption(text: m.hasKeyboard ? "MIDI" : "AUCUN CLAVIER",
+                            color: !m.hasKeyboard ? Tone.warn : (m.midiLive ? Tone.ok : Tone.txt2))
                     Text("\(m.held)")
                         .font(.value(10)).foregroundStyle(Tone.txt2)
                 }
@@ -403,7 +405,23 @@ struct StageView: View {
     private var bottomBar: some View {
         HStack(spacing: 14) {
             status("speaker.wave.2.fill", m.engine.statusAudio)
-            status("pianokeys", m.engine.midiSourceNames.first ?? "aucun clavier détecté")
+            if m.hasKeyboard {
+                status("pianokeys", m.engine.midiSourceNames.first ?? "")
+            } else {
+                HStack(spacing: 6) {
+                    Image(systemName: "pianokeys").font(.system(size: 10)).foregroundStyle(Tone.warn)
+                    Text("aucun clavier détecté — branchez-le, il sera pris tout seul")
+                        .font(.system(size: 10.5)).foregroundStyle(Tone.warn)
+                }
+            }
+            if let note = m.deviceNote {
+                HStack(spacing: 5) {
+                    Image(systemName: "checkmark.circle.fill").font(.system(size: 10))
+                    Text(note).font(.system(size: 10.5))
+                }
+                .foregroundStyle(Tone.ok)
+                .transition(.opacity)
+            }
             Spacer(minLength: 8)
 
             Button { m.toggleLocal() } label: {

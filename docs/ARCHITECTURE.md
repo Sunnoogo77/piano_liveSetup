@@ -47,6 +47,14 @@ Il est utilisé en **rendu manuel** : aucun pilote audio de FluidSynth n'est ouv
 flux est tiré par le bloc de rendu d'`AVAudioEngine`, ce qui laisse le contrôle du
 périphérique et de la taille de tampon à l'application.
 
+## Le démarrage de la sortie
+
+Un périphérique que vient de relâcher une autre application accepte le démarrage sans
+erreur mais ne lance pas son rendu. `startAudio()` compte donc les appels du bloc de
+rendu : si le compteur reste à zéro au bout de 600 ms, il arrête, attend 300 ms et
+recommence, jusqu'à quatre fois. C'est ce qui évite une application muette quand on
+quitte et relance dans la foulée, ou quand on change de sortie en cours de jeu.
+
 ## Les presets
 
 Un preset est une liste de **couches** (trois au maximum, une par canal FluidSynth), plus

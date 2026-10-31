@@ -14,7 +14,7 @@ try? FileManager.default.createDirectory(atPath: outDir, withIntermediateDirecto
 @MainActor
 func render(_ name: String, width: CGFloat, height: CGFloat, sidebar: CGFloat = 262,
             presetIndex: Int = 0, fakeSpectrum: Bool = true, tab: Tab = .eq,
-            notes: [Int] = [], history: [Int] = []) {
+            notes: [Int] = [], history: [Int] = [], keyboard: Bool = true) {
     let m = RigModel()
     m.ready = true
     m.presetIndex = min(presetIndex, m.presets.count - 1)
@@ -39,6 +39,7 @@ func render(_ name: String, width: CGFloat, height: CGFloat, sidebar: CGFloat = 
     }
     m.isRecording = (tab == .record)
     m.recSeconds = 94; m.recNotes = 412
+    m.hasKeyboard = keyboard
     m.refreshDevices()
 
     let view = HStack(spacing: 0) {
@@ -73,4 +74,6 @@ MainActor.assumeIsolated {
     render("tab-devices", width: 1440, height: 1000, presetIndex: 0, tab: .devices)
     render("ui-min",      width: 1020, height: 700, sidebar: 230, presetIndex: 7, tab: .play,
            notes: chord)
+    render("tab-play-waiting", width: 1440, height: 900, presetIndex: 0, tab: .play,
+           keyboard: false)
 }

@@ -1,5 +1,11 @@
 import Foundation
+
+// Accelerate n'existe que chez Apple. Le reste de ce fichier — filtres, chaîne de
+// traitement, analyse — est du Swift pur : compilé avec -DPLS_PORTABLE, il tourne
+// partout où tourne Swift. C'est ce qui rend un portage envisageable.
+#if canImport(Accelerate) && !PLS_PORTABLE
 import Accelerate
+#endif
 
 // MARK: - Biquad (formules RBJ)
 
@@ -233,11 +239,18 @@ final class SpectrumTap: @unchecked Sendable {
     private let buffer: UnsafeMutablePointer<Float>
     private let writeIndex: UnsafeMutablePointer<Int>
 
-    private let fft: vDSP.FFT<DSPSplitComplex>
     private var window: [Float]
     private var real = [Float](repeating: 0, count: fftSize / 2)
     private var imag = [Float](repeating: 0, count: fftSize / 2)
     private var scratch = [Float](repeating: 0, count: fftSize)
+
+    #if canImport(Accelerate) && !PLS_PORTABLE
+    private let fft: vDSP.FFT<DSPSplitComplex>
+    #else
+    private var portableReal = [Float](repeating: 0, count: fftSize)
+    private var portableImag = [Float](repeating: 0, count: fftSize)
+    private let bitReverse: [Int]
+    #endif
 
     /// Bandes affichées, réparties logarithmiquement de 20 Hz à 20 kHz.
     let bandCount = 128
@@ -253,15 +266,72 @@ final class SpectrumTap: @unchecked Sendable {
         buffer.initialize(repeating: 0, count: capacity)
         writeIndex = .allocate(capacity: 1)
         writeIndex.pointee = 0
-        window = vDSP.window(ofType: Float.self, usingSequence: .hanningDenormalized,
-                             count: Self.fftSize, isHalfWindow: false)
-        fft = vDSP.FFT(log2n: vDSP_Length(log2(Float(Self.fftSize))),
+
+        // Fenêtre de Hann, écrite à la main pour ne dépendre de personne.
+        let n = Self.fftSize
+        window = (0..<n).map { 0.5 - 0.5 * cos(2 * Float.pi * Float($0) / Float(n - 1)) }
+
+        #if canImport(Accelerate) && !PLS_PORTABLE
+        fft = vDSP.FFT(log2n: vDSP_Length(log2(Float(n))),
                        radix: .radix2, ofType: DSPSplitComplex.self)!
+        #else
+        var rev = [Int](repeating: 0, count: n)
+        let bits = Int(log2(Double(n)))
+        for i in 0..<n {
+            var x = i, r = 0
+            for _ in 0..<bits { r = (r << 1) | (x & 1); x >>= 1 }
+            rev[i] = r
+        }
+        bitReverse = rev
+        #endif
+
         bandsDB = [Float](repeating: -100, count: bandCount)
         peaksDB = [Float](repeating: -100, count: bandCount)
-        binMag = [Float](repeating: 0, count: Self.fftSize / 2)
+        binMag = [Float](repeating: 0, count: n / 2)
         rebuildBands()
     }
+
+    #if !(canImport(Accelerate) && !PLS_PORTABLE)
+    /// FFT complexe radix-2 en place, écrite en Swift pur.
+    /// Deux fois plus de travail que la FFT réelle d'Accelerate, mais un
+    /// analyseur de 2048 points trente fois par seconde reste négligeable.
+    private func portableFFT() {
+        let n = Self.fftSize
+        for i in 0..<n {
+            portableReal[bitReverse[i]] = scratch[i]
+            portableImag[bitReverse[i]] = 0
+        }
+        var len = 2
+        while len <= n {
+            let ang = -2 * Float.pi / Float(len)
+            let wr = cos(ang), wi = sin(ang)
+            var i = 0
+            while i < n {
+                var curR: Float = 1, curI: Float = 0
+                for j in 0..<(len / 2) {
+                    let a = i + j, b = i + j + len / 2
+                    let tr = portableReal[b] * curR - portableImag[b] * curI
+                    let ti = portableReal[b] * curI + portableImag[b] * curR
+                    portableReal[b] = portableReal[a] - tr
+                    portableImag[b] = portableImag[a] - ti
+                    portableReal[a] += tr
+                    portableImag[a] += ti
+                    let nextR = curR * wr - curI * wi
+                    curI = curR * wi + curI * wr
+                    curR = nextR
+                }
+                i += len
+            }
+            len <<= 1
+        }
+        // Accelerate renvoie une FFT réelle d'amplitude double : on s'aligne
+        // dessus pour que l'affichage et les mesures soient identiques.
+        for b in 0..<(n / 2) {
+            real[b] = portableReal[b] * 2
+            imag[b] = portableImag[b] * 2
+        }
+    }
+    #endif
 
     private func rebuildBands() {
         let nyquist = sampleRate / 2
@@ -347,8 +417,9 @@ final class SpectrumTap: @unchecked Sendable {
             if idx >= capacity { idx -= capacity }
             scratch[i] = buffer[idx]
         }
-        vDSP.multiply(scratch, window, result: &scratch)
+        for i in 0..<n { scratch[i] *= window[i] }
 
+        #if canImport(Accelerate) && !PLS_PORTABLE
         scratch.withUnsafeBufferPointer { sp in
             sp.baseAddress!.withMemoryRebound(to: DSPComplex.self, capacity: n / 2) { cp in
                 real.withUnsafeMutableBufferPointer { rp in
@@ -360,6 +431,9 @@ final class SpectrumTap: @unchecked Sendable {
                 }
             }
         }
+        #else
+        portableFFT()
+        #endif
 
         let norm = 2.0 / Float(n)
         for b in 0..<(n / 2) {

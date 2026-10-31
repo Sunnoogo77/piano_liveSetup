@@ -92,11 +92,27 @@ réinitialise quand on lui assigne un périphérique.
 `Scroll` avec son drapeau `Flat.scrolls`, et les faders dessinés à la main. Ce n'est pas
 un bug de l'app.
 
-**Un périphérique audio qui vient d'être libéré rend du silence.** Si vous tuez
-l'application puis lancez `selftest` dans la foulée, le moteur démarre sans erreur mais
-le bloc de rendu sort du zéro absolu (−180 dB partout, WAV vide). Ce n'est pas une
-régression : laissez deux ou trois secondes entre les deux. Un résultat où *tout* l'audio
-est muet alors que le MIDI et les accords fonctionnent est le signe de ce cas.
+**CoreMIDI ne notifie que sur une run loop.** `MIDIClientCreateWithBlock` délivre les
+changements de branchement sur la run loop du thread qui a créé le client. Créé depuis
+une `Task.detached`, il n'en reçoit aucune : le piano allumé après le lancement n'est
+jamais détecté, en silence. `startMIDI()` doit être appelé depuis le thread principal —
+il y a une `assert` pour ça. Dans un outil en ligne de commande, `Thread.sleep` ne fait
+pas tourner la run loop : utilisez `RunLoop.current.run(until:)` (voir le test 13).
+
+**La carte son d'un piano n'apparaît qu'à son allumage.** Surveiller les ports MIDI ne
+suffit pas : il faut aussi un écouteur sur `kAudioHardwarePropertyDevices`, sinon la
+sortie reste sur les haut-parleurs du Mac alors que le piano est devenu disponible.
+
+**Un périphérique audio qui vient d'être libéré accepte `engine.start()` sans erreur
+mais ne fait jamais tourner le rendu.** Résultat : −180 dB partout, WAV vide, et ça ne
+se répare jamais tout seul. Le MIDI et les accords continuent de fonctionner, ce qui
+rend le diagnostic trompeur.
+
+`startAudio()` compte désormais les appels du bloc de rendu après le démarrage, et
+réessaie jusqu'à quatre fois si le compteur reste à zéro au bout de 600 ms. **Ne
+supprimez pas cette boucle** : sans elle, quitter puis relancer l'application trop vite
+donne une application muette. Si vous ajoutez un chemin qui démarre l'audio, faites-lui
+passer la même vérification.
 
 **L'étalonnage doit mesurer limiteur coupé.** Sinon toutes les crêtes butent au plafond
 et le calcul est faux. `ProcessorChain.limiterEnabled = false` pendant la mesure.
@@ -106,6 +122,19 @@ et le calcul est faux. `ProcessorChain.limiterEnabled = false` pendant la mesure
 
 **Nommez les notes par leur degré, pas par leur classe de hauteur.** La septième d'un C9
 est un Si♭, pas un La♯. Voir `Spelling.noteName(rootPC:degree:actualPC:)`.
+
+**Mesurez la bonne grandeur.** Deux tests ont dû être réécrits parce qu'ils
+mesuraient un seuil arbitraire au lieu de la propriété réelle :
+
+- *« aucune note bloquée »* comparait le niveau à un plancher fixe. Une queue de
+  réverbération le franchissait parfois. Ce qui distingue une note bloquée d'une
+  réverbération, c'est qu'elle **ne décroît pas** : comparez deux relevés espacés.
+- *« l'égaliseur agit »* mesurait sur un piano. Ses aigus s'éteignent en une
+  fraction de seconde, donc le résultat dépendait de l'instant du relevé. Mesurez
+  sur un son **tenu** (un orgue), après établissement, en moyennant plusieurs
+  relevés.
+
+Un test instable qu'on « corrige » en desserrant son seuil ne teste plus rien.
 
 **Vos cas de test peuvent être faux.** Trois fois pendant l'écriture de
 `ChordTest`, le détecteur avait raison et le test avait tort (La-Do-Mi-Sol est Am7, pas

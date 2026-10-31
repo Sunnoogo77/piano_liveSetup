@@ -1,4 +1,5 @@
 import Foundation
+import CoreMIDI
 
 // Auto-test du moteur complet. Tout passe par la vraie sortie audio : on mesure
 // ce qui sort, on ne suppose rien.
@@ -96,21 +97,28 @@ engine.resetTranspose()
 
 // ---------------------------------------------------------------- 4
 print("\n--- 4. Aucune note bloquée ---")
-engine.selectPreset(0); settle(0.1)
-engine.injectMIDI(status: 0x90, d1: 60, d2: 100)
-engine.nudgeTranspose(5)                                 // on transpose touche tenue
-engine.injectMIDI(status: 0x80, d1: 60, d2: 0)
-settle(1.6)
-check("transposition touche tenue", engine.heldNotes == 0 && engine.peakL < 0.012,
-      String(format: "%d note(s), crête %+.1f dB", engine.heldNotes, 20 * log10(max(engine.peakL, 1e-9))))
-engine.resetTranspose()
+// Une note bloquée se tient ; une réverbération décroît. On mesure donc la
+// décroissance, pas un niveau absolu — un seuil fixe confondrait les deux.
+func decaysAfterRelease(_ label: String, _ action: () -> Void) {
+    engine.injectMIDI(status: 0x90, d1: 60, d2: 100)
+    action()
+    engine.injectMIDI(status: 0x80, d1: 60, d2: 0)
+    settle(1.0)
+    let p1 = max(engine.peakL, engine.peakR)
+    settle(1.6)
+    let p2 = max(engine.peakL, engine.peakR)
+    let quiet = p2 < 0.004
+    let decaying = p2 < p1 * 0.5
+    check(label, engine.heldNotes == 0 && (quiet || decaying),
+          String(format: "%d note(s) tenue(s), %+.1f dB → %+.1f dB",
+                 engine.heldNotes, 20 * log10(max(p1, 1e-9)), 20 * log10(max(p2, 1e-9))))
+}
 
-engine.injectMIDI(status: 0x90, d1: 60, d2: 100)
-engine.selectPreset(23)                                   // changement de preset touche tenue
-engine.injectMIDI(status: 0x80, d1: 60, d2: 0)
-settle(1.8)
-check("changement de son touche tenue", engine.heldNotes == 0 && engine.peakL < 0.012,
-      String(format: "%d note(s)", engine.heldNotes))
+engine.selectPreset(0); settle(0.1)
+decaysAfterRelease("transposition touche tenue") { engine.nudgeTranspose(5) }
+engine.resetTranspose()
+engine.panic(); settle(0.4)
+decaysAfterRelease("changement de son touche tenue") { engine.selectPreset(23) }
 
 // ---------------------------------------------------------------- 5
 print("\n--- 5. Les partages clavier routent les bonnes zones ---")
@@ -133,45 +141,48 @@ if let si = cfg.presets.firstIndex(where: { $0.category == .split }) {
 
 // ---------------------------------------------------------------- 6
 print("\n--- 6. L'égaliseur agit réellement sur le signal ---")
-engine.selectPreset(0)
-engine.resetEQ(); settle(0.15)
-func energyAround3k() -> Float {
-    engine.panic(); settle(0.25)
-    for n in [UInt8(48), 55, 60, 64, 67] { engine.injectMIDI(status: 0x90, d1: n, d2: 110) }
-    settle(0.35); measure()
-    let e = engine.spectrum.energyDB(between: 2800, and: 4400)
-    for n in [UInt8(48), 55, 60, 64, 67] { engine.injectMIDI(status: 0x80, d1: n, d2: 0) }
-    return e
+// On mesure sur un orgue, pas sur un piano : un son tenu donne un spectre
+// stable, alors qu'une note de piano perd ses aigus en une fraction de seconde
+// et la mesure dépendrait de l'instant du relevé.
+let organIndex = cfg.presets.firstIndex { $0.name == "Drawbar Jazz" } ?? 0
+engine.selectPreset(organIndex)
+engine.resetEQ(); settle(0.2)
+
+/// Moyenne plusieurs relevés de spectre sur un son tenu.
+func steadyEnergy(_ lo: Float, _ hi: Float, notes: [UInt8]) -> Float {
+    engine.panic(); settle(0.3)
+    for n in notes { engine.injectMIDI(status: 0x90, d1: n, d2: 105) }
+    settle(0.6)                                  // laisse le son s'établir
+    var sum: Double = 0
+    for _ in 0..<6 {
+        settle(0.06)
+        measure()
+        sum += Double(engine.spectrum.energyDB(between: lo, and: hi))
+    }
+    for n in notes { engine.injectMIDI(status: 0x80, d1: n, d2: 0) }
+    return Float(sum / 6)
 }
-let flat = energyAround3k()
-engine.updateEQBand(4, freq: 3500, gain: 12, q: 1.1, enabled: true)
-settle(0.1)
-let boosted = energyAround3k()
-engine.updateEQBand(4, freq: 3500, gain: -12, q: 1.1, enabled: true)
-settle(0.1)
-let cut = energyAround3k()
-engine.resetEQ()
+
+let chordNotes: [UInt8] = [48, 55, 60, 64, 67]
+let flat = steadyEnergy(2800, 4400, notes: chordNotes)
+engine.updateEQBand(4, freq: 3500, gain: 12, q: 1.1, enabled: true); settle(0.2)
+let boosted = steadyEnergy(2800, 4400, notes: chordNotes)
+engine.updateEQBand(4, freq: 3500, gain: -12, q: 1.1, enabled: true); settle(0.2)
+let cut = steadyEnergy(2800, 4400, notes: chordNotes)
+engine.resetEQ(); settle(0.2)
 check("+12 dB à 3,5 kHz remonte la bande", boosted - flat > 6,
       String(format: "%+.1f dB", boosted - flat))
 check("−12 dB à 3,5 kHz abaisse la bande", flat - cut > 6,
       String(format: "%+.1f dB", cut - flat))
 
 print("\n--- 7. Le coupe-bas coupe vraiment les graves ---")
-func energyLow() -> Float {
-    engine.panic(); settle(0.25)
-    for n in [UInt8(36), 40, 43] { engine.injectMIDI(status: 0x90, d1: n, d2: 110) }
-    settle(0.35); measure()
-    let e = engine.spectrum.energyDB(between: 30, and: 90)
-    for n in [UInt8(36), 40, 43] { engine.injectMIDI(status: 0x80, d1: n, d2: 0) }
-    return e
-}
-engine.resetEQ(); settle(0.1)
-let lowFlat = energyLow()
-engine.updateEQBand(0, freq: 300, gain: 0, q: 0.707, enabled: true)
-settle(0.1)
-let lowCut = energyLow()
-engine.resetEQ()
+let lowNotes: [UInt8] = [36, 40, 43]
+let lowFlat = steadyEnergy(30, 90, notes: lowNotes)
+engine.updateEQBand(0, freq: 300, gain: 0, q: 0.707, enabled: true); settle(0.2)
+let lowCut = steadyEnergy(30, 90, notes: lowNotes)
+engine.resetEQ(); settle(0.2)
 check("coupe-bas à 300 Hz", lowFlat - lowCut > 8, String(format: "%+.1f dB", lowCut - lowFlat))
+engine.panic(); settle(0.3)
 
 // ---------------------------------------------------------------- 8
 print("\n--- 8. Arrêt d'urgence et marge avant saturation ---")
@@ -245,8 +256,16 @@ if let meta {
     func size(_ f: String) -> Int {
         (try? FileManager.default.attributesOfItem(atPath: dir.appendingPathComponent(f).path)[.size] as? Int) as? Int ?? 0
     }
-    check("notes enregistrées", meta.noteCount == playedNotes && meta.noteCount == 15,
-          "\(meta.noteCount) notes")
+    // Le clavier est branché : s'il est touché pendant le test, ses notes entrent
+    // aussi dans la prise. On vérifie donc que la cadence est bien là, pas que
+    // rien d'autre ne s'y trouve.
+    let presses = cadence.flatMap { $0 }.count          // 15 frappes
+    let expected = Set(cadence.flatMap { $0 })           // 10 hauteurs distinctes
+    let recorded = Set(TakeStore.load(meta.id)?.notes.map { $0.note } ?? [])
+    check("la cadence est enregistrée", expected.isSubset(of: recorded),
+          "\(meta.noteCount) notes pour \(presses) frappes"
+          + (meta.noteCount > presses ? " — le clavier a été touché pendant le test" : ""))
+    check("cohérence du compteur", meta.noteCount == playedNotes, "\(meta.noteCount) / \(playedNotes)")
     check("audio.wav", size("audio.wav") > 200_000,
           String(format: "%.1f Mo", Double(size("audio.wav")) / 1_048_576))
     check("performance.mid", size("performance.mid") > 150, "\(size("performance.mid")) octets")
@@ -276,6 +295,60 @@ check("choix automatique de la sortie", auto != nil,
       auto.map { "« \($0.1) » retenue pour le clavier « \(engine.midiSourceNames.first ?? "?") »" } ?? "")
 check("ports logiciels ignorés", !DevicePicker.looksLikeSoftwarePort("ARIUS")
       && DevicePicker.looksLikeSoftwarePort("IAC Driver Bus 1"))
+
+// ---------------------------------------------------------------- 13
+print("\n--- 13. Branchement à chaud d'un clavier ---")
+// CoreMIDI délivre ses notifications sur la run loop : on la fait tourner,
+// sinon rien n'arrive — c'est exactement le bug qu'on vérifie ici.
+func spin(_ seconds: Double) {
+    RunLoop.current.run(until: Date().addingTimeInterval(seconds))
+}
+let beforePlug = engine.midiSourceNames
+var fakeClient = MIDIClientRef()
+var fakeSource = MIDIEndpointRef()
+MIDIClientCreate("PianoLiveFakeKeyboard" as CFString, nil, nil, &fakeClient)
+let fakeName = "Clavier de test PLS"
+let created = MIDISourceCreate(fakeClient, fakeName as CFString, &fakeSource)
+check("clavier factice créé", created == noErr)
+spin(2.0)
+let after = engine.midiSourceNames
+check("détecté sans intervention", after.contains(fakeName),
+      "avant : \(beforePlug.joined(separator: ", ")) → après : \(after.joined(separator: ", "))")
+check("l'ancien clavier est toujours là", beforePlug.allSatisfy { after.contains($0) })
+
+MIDIEndpointDispose(fakeSource)
+MIDIClientDispose(fakeClient)
+spin(2.0)
+check("débranchement détecté", !engine.midiSourceNames.contains(fakeName),
+      engine.midiSourceNames.joined(separator: ", "))
+
+// ---------------------------------------------------------------- 14
+print("\n--- 14. Changement de sortie audio en cours de jeu ---")
+let devices = CA.outputDevices().map { $0.1 }
+let other = devices.first { $0 != engine.audioDeviceLabel && !$0.contains("Aggregate") }
+if let other {
+    let origin = engine.audioDeviceLabel
+    check("bascule vers « \(other) »", engine.switchAudioDevice(named: other), engine.statusAudio)
+    settle(1.0)
+    for n in [UInt8(60), 64, 67] { engine.injectMIDI(status: 0x90, d1: n, d2: 100) }
+    settle(0.4)
+    let pk = max(engine.peakL, engine.peakR)
+    for n in [UInt8(60), 64, 67] { engine.injectMIDI(status: 0x80, d1: n, d2: 0) }
+    engine.panic(); settle(0.4)
+    check("du son sur la nouvelle sortie", pk > 0.004,
+          String(format: "crête %+.1f dB", 20 * log10(max(pk, 1e-9))))
+    check("retour sur « \(origin) »", engine.switchAudioDevice(named: origin))
+    settle(1.0)
+    for n in [UInt8(60), 64, 67] { engine.injectMIDI(status: 0x90, d1: n, d2: 100) }
+    settle(0.4)
+    let pk2 = max(engine.peakL, engine.peakR)
+    for n in [UInt8(60), 64, 67] { engine.injectMIDI(status: 0x80, d1: n, d2: 0) }
+    engine.panic(); settle(0.3)
+    check("du son après retour", pk2 > 0.004,
+          String(format: "crête %+.1f dB", 20 * log10(max(pk2, 1e-9))))
+} else {
+    check("une seconde sortie pour tester", false, "une seule sortie disponible")
+}
 
 engine.setMasterVolume(cfg.masterVolume)
 engine.selectPreset(cfg.presets.firstIndex { $0.name == "Concert Grand" } ?? 0)

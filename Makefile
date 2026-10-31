@@ -1,5 +1,5 @@
 # Raccourcis. Tout passe par les scripts, qui restent utilisables seuls.
-.PHONY: all install light build test test-audio calibrate preview run clean uninstall
+.PHONY: all install light build test test-audio portable calibrate preview run clean uninstall
 
 all: install
 
@@ -17,6 +17,12 @@ test:               ## Tests sans matériel (accords, formats)
 
 test-audio:         ## Tous les tests, dont ceux qui jouent du son
 	./scripts/test.sh --audio
+
+portable:           ## Vérifier que le cœur compile sans framework Apple
+	@swiftc -swift-version 5 -typecheck -DPLS_PORTABLE \
+	  Sources/Core/Model.swift Sources/Core/DSP.swift \
+	  Sources/Core/Chords.swift Sources/Core/Recording.swift \
+	  && echo "Le cœur est portable."
 
 calibrate:          ## Recalculer l'équilibre des sons
 	./scripts/calibrate.sh

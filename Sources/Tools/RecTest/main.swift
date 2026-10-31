@@ -93,6 +93,33 @@ check("signature RIFF/WAVE", String(decoding: head[0..<4], as: UTF8.self) == "RI
 check("24 bits stéréo 44,1 kHz", head[34] == 24 && head[22] == 2)
 check("données écrites", size > 100_000, "\(size ?? 0) octets, \(String(format: "%.2f", Double(size ?? 0) / (44100 * 6))) s")
 
+print("\n--- Analyseur de spectre ---")
+#if canImport(Accelerate) && !PLS_PORTABLE
+print("  moteur FFT : Accelerate (Apple)")
+#else
+print("  moteur FFT : Swift pur (portable)")
+#endif
+let tap = SpectrumTap()
+tap.sampleRate = 44100
+var sl = [Float](repeating: 0, count: 2048)
+var sr = [Float](repeating: 0, count: 2048)
+for i in 0..<2048 {
+    let t = Double(i) / 44100
+    let v = Float(0.5 * sin(2 * .pi * 440 * t) + 0.12 * sin(2 * .pi * 3000 * t))
+    sl[i] = v; sr[i] = v
+}
+sl.withUnsafeBufferPointer { lp in sr.withUnsafeBufferPointer { rp in
+    tap.write(lp.baseAddress!, rp.baseAddress!, frames: 2048) } }
+tap.analyse()
+let f0 = tap.dominantFrequency(between: 200, and: 900)
+let e440 = tap.energyDB(between: 400, and: 480)
+let e3k  = tap.energyDB(between: 2800, and: 3200)
+let eQuiet = tap.energyDB(between: 8000, and: 12000)
+check("fondamentale trouvée à 440 Hz", abs(f0 - 440) < 6, String(format: "%.1f Hz", f0))
+check("la bande 440 Hz domine", e440 - eQuiet > 40, String(format: "%+.1f dB au-dessus du silence", e440 - eQuiet))
+check("la composante 3 kHz est bien plus faible", e440 - e3k > 8, String(format: "écart %+.1f dB", e440 - e3k))
+print(String(format: "  repères : 440 Hz %+.1f dB · 3 kHz %+.1f dB · 10 kHz %+.1f dB", e440, e3k, eQuiet))
+
 print("\n\(fails == 0 ? "TOUS LES FORMATS SONT VALIDES" : "\(fails) PROBLÈME(S)")")
 print("Fichiers : \(outDir.path)")
 exit(fails == 0 ? 0 : 1)

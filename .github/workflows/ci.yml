@@ -25,6 +25,9 @@ jobs:
         # d'accords et la validité des quatre formats d'export.
         run: ./scripts/test.sh
 
+      - name: Le cœur doit compiler sans framework Apple
+        run: make portable
+
       - name: Vérifier la structure de la partition générée
         run: |
           python3 - <<'PY'

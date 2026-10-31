@@ -7,9 +7,7 @@
 31 sons de scène · égaliseur 7 bandes sur analyseur de spectre · détection d'accords
 enregistrement audio, MIDI et partition · entrée micro · **2,9 ms de latence**
 
-*A macOS live-performance rig for any USB MIDI piano: 31 stage sounds, a 7-band EQ over a
-real-time spectrum analyser, live chord detection, and one-button recording to WAV, MIDI
-and MusicXML. One command to install. Interface in French.*
+*A macOS live rig for any USB MIDI piano.* **[Read this in English →](README.en.md)**
 
 ![L'écran de jeu](docs/images/tab-play.png)
 
@@ -43,10 +41,15 @@ automatiquement sur une équivalence : rien ne devient muet.
 
 ## Ce que ça fait
 
-### Un seul câble
+### Un seul câble, et rien à configurer
 
 Branchez le piano en USB. Il est reconnu **quelle que soit la marque** — Yamaha, Korg,
-Roland, Casio, Nord… — et même s'il est branché après le lancement.
+Roland, Casio, Nord…
+
+Vous pouvez ouvrir l'application piano éteint : elle affiche clairement qu'elle attend
+un clavier, et tout le reste reste utilisable. **Dès que vous allumez l'instrument, elle
+le prend en main toute seule** : connexion MIDI, son interne coupé, et la sortie audio
+bascule sur le piano s'il sait recevoir le son. Rien à cliquer.
 
 Beaucoup de pianos numériques se présentent au Mac à la fois comme port MIDI **et** comme
 carte son, sous le même nom. Quand l'application voit ce cas, elle y envoie le son :
@@ -81,6 +84,9 @@ avant saturation.
 | **Périphériques** | clavier MIDI, sortie audio, entrée micro et son égaliseur |
 
 <div align="center">
+
+![En attente d'un clavier](docs/images/tab-play-waiting.png)
+*Piano éteint : l'application le dit clairement et reste utilisable. Allumez-le, elle le prend en main toute seule.*
 
 ![Égaliseur](docs/images/tab-eq.png)
 *L'égaliseur : la courbe se pose sur le spectre, les sept points se tirent à la souris.*
@@ -126,6 +132,7 @@ haut-parleurs siffle.
 | `make test-audio` | tous les tests, y compris ceux qui jouent du son |
 | `make calibrate` | recalculer l'équilibre des sons après modification |
 | `make preview` | rendre l'interface en PNG, sans ouvrir l'app |
+| `make portable` | vérifier que le cœur compile sans framework Apple |
 | `./scripts/uninstall.sh` | retirer l'application |
 
 Raccourcis dans l'app : `←` `→` transposer · `0` remise à zéro · `[` `]` octave ·
@@ -144,8 +151,21 @@ Raccourcis dans l'app : `←` `→` transposer · `0` remise à zéro · `[` `]`
 - L'analyseur fait une FFT de 2048 points avec `vDSP`, répartie sur 128 bandes
   logarithmiques.
 
+`Sources/Core/` — modèle, traitement du signal, accords, enregistrement — **compile sans
+aucun framework Apple**, vérifié à chaque passage de la CI. L'analyseur a deux
+implémentations, celle d'Accelerate et une FFT en Swift pur, qui donnent les mêmes
+mesures.
+
 Les détails sont dans [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Ce que j'ai appris en
 le construisant — les pièges — est dans [AGENTS.md](AGENTS.md).
+
+### Et sur iPad, Windows, Linux ?
+
+Rien n'est porté à ce jour, et je ne vais pas prétendre le contraire. Mais le cœur est
+déjà portable, et [docs/PORTING.md](docs/PORTING.md) détaille ce que chaque système
+demanderait — avec le chemin qui me semble le plus rentable : un moteur sans interface
+piloté par une page web, ce qui donnerait d'un coup Linux, Windows, **et le contrôle
+depuis un iPad pendant que le Mac fait le son**.
 
 ---
 
@@ -153,6 +173,9 @@ le construisant — les pièges — est dans [AGENTS.md](AGENTS.md).
 
 Le dépôt est écrit pour ça. [AGENTS.md](AGENTS.md) contient la carte du code, les
 commandes, les règles à ne pas enfreindre et les pièges déjà rencontrés.
+
+Pour étendre le projet — un son, un effet, un écran, une banque —
+[docs/EXTENDING.md](docs/EXTENDING.md) donne la recette de chaque cas.
 
 Donnez simplement ceci à votre agent :
 
