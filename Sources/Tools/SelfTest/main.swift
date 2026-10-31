@@ -65,7 +65,7 @@ func measureFundamental(semitones: Int32) -> Float {
     engine.injectMIDI(status: 0x90, d1: 69, d2: 100)
     settle(0.30)
     measure()
-    let f = engine.spectrum.dominantFrequency(between: 200, and: 900)
+    let f = engine.spectrum.fundamentalFrequency(between: 150, and: 1100)
     engine.injectMIDI(status: 0x80, d1: 69, d2: 0)
     engine.panic()
     settle(0.3)
@@ -88,7 +88,7 @@ engine.resetTranspose()
 engine.nudgeOctave(1); engine.nudgeTranspose(2)
 engine.injectMIDI(status: 0x90, d1: 69, d2: 100)
 settle(0.30); measure()
-let fOct = engine.spectrum.dominantFrequency(between: 600, and: 1800)
+let fOct = engine.spectrum.fundamentalFrequency(between: 600, and: 1800)
 engine.injectMIDI(status: 0x80, d1: 69, d2: 0); engine.panic(); settle(0.3)
 let expOct = 440 * pow(Float(2), 14.0 / 12.0)
 check("octave +1 et +2 demi-tons", abs(1200 * log2(fOct / expOct)) < 45,
@@ -217,7 +217,9 @@ if engine.canControlPianoLocal {
     engine.setPianoLocalControl(false)
     check("CC 122 émis vers le piano", true, "coupé maintenant, rétabli à la fermeture")
 } else {
-    check("destination MIDI du piano trouvée", false, "piano non branché ?")
+    // Sans clavier branché il n'y a rien à piloter : ce n'est pas un échec,
+    // la batterie doit pouvoir tourner sur une machine sans piano.
+    print("  —     aucun clavier branché : contrôle du son interne non testé")
 }
 
 // ---------------------------------------------------------------- 10

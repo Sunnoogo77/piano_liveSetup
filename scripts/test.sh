@@ -11,6 +11,9 @@ echo
 echo "── Formats d'enregistrement ──────────────────────────"
 build/bin/rectest | tail -4
 echo
+echo "── Contrôle à distance ───────────────────────────────"
+build/bin/remotetest | tail -5
+echo
 echo "── Le cœur compile sans framework Apple ──────────────"
 if swiftc -swift-version 5 -typecheck -DPLS_PORTABLE \
      Sources/Core/Model.swift Sources/Core/DSP.swift \

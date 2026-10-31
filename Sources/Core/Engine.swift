@@ -674,6 +674,8 @@ final class LiveEngine: @unchecked Sendable {
 
     func rememberCurrent(_ name: String) { config.currentPreset = name }
     func clearSwitchNote() { lastSwitchNote = nil }
+    func setRemoteEnabled(_ on: Bool) { config.remoteEnabled = on }
+    func setRemoteKey(_ k: String) { config.remoteKey = k }
 
     var heldNotes: Int { noteLock.lock(); defer { noteLock.unlock() }; return sounding.count }
 

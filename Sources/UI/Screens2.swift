@@ -221,6 +221,74 @@ struct DevicesScreen: View {
                     }
                 }
 
+                Panel(title: "Contrôle à distance") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 12) {
+                            Toggle(isOn: Binding(get: { m.remoteOn }, set: { _ in m.toggleRemote() })) {
+                                Text("Publier une page de commande sur le réseau local")
+                                    .font(.system(size: 11)).foregroundStyle(Tone.txt1)
+                            }
+                            .toggleStyle(.switch).tint(Tone.accent)
+                            Spacer(minLength: 0)
+                            if m.remoteOn {
+                                HStack(spacing: 6) {
+                                    Circle().fill(Tone.ok).frame(width: 6, height: 6)
+                                    Text("en service").font(.system(size: 10.5)).foregroundStyle(Tone.ok)
+                                }
+                            }
+                        }
+
+                        if m.remoteOn {
+                            HStack(alignment: .top, spacing: 18) {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Caption(text: "Clé d'accès")
+                                        Text(m.remoteKey)
+                                            .font(.system(size: 22, weight: .semibold, design: .monospaced))
+                                            .tracking(3).foregroundStyle(Tone.accent)
+                                    }
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Caption(text: "Adresses à ouvrir")
+                                        ForEach(m.remoteAddresses, id: \.self) { a in
+                                            Button { copy(a) } label: {
+                                                HStack(spacing: 6) {
+                                                    Image(systemName: "doc.on.doc")
+                                                        .font(.system(size: 9))
+                                                    Text(a).font(.system(size: 11, design: .monospaced))
+                                                        .lineLimit(1).truncationMode(.middle)
+                                                }
+                                                .foregroundStyle(Tone.txt1)
+                                            }
+                                            .buttonStyle(.plain)
+                                            .help("Copier l'adresse")
+                                        }
+                                    }
+                                    Text("Sur l'iPad ou le téléphone, scannez le code ou ouvrez l'adresse dans le navigateur. Le Mac continue de faire le son : l'appareil ne sert que de commande.")
+                                        .font(.system(size: 10)).foregroundStyle(Tone.txt2)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    Text("Le premier lancement peut faire apparaître une demande du pare-feu macOS : autorisez les connexions entrantes.")
+                                        .font(.system(size: 10)).foregroundStyle(Tone.txt2)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                Spacer(minLength: 0)
+                                if let first = m.remoteAddresses.first {
+                                    VStack(spacing: 6) {
+                                        QRCode(text: first)
+                                        Caption(text: "à scanner")
+                                    }
+                                }
+                            }
+                        } else {
+                            Text("Une fois activée, une page s'ouvre depuis n'importe quel navigateur du réseau : sons, transposition, niveaux, égaliseur, arrêt des notes et enregistrement. Rien à installer sur la tablette.")
+                                .font(.system(size: 10.5)).foregroundStyle(Tone.txt2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        if let msg = m.remoteMessage {
+                            Text(msg).font(.system(size: 10.5)).foregroundStyle(Tone.warn)
+                        }
+                    }
+                }
+
                 Panel(title: "Entrée micro") {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(spacing: 12) {
@@ -301,6 +369,11 @@ struct DevicesScreen: View {
                 Spacer(minLength: 0)
             }
         }
+    }
+
+    private func copy(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 
     private func row(_ symbol: String, _ text: String, _ color: Color) -> some View {

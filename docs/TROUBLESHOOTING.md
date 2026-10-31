@@ -62,6 +62,22 @@ brew install fluid-synth
 Elle est signée localement, pas notariée par Apple. Clic droit sur l'application ▸
 **Ouvrir**, puis confirmez. Une seule fois.
 
+### La page de commande ne s'ouvre pas sur la tablette
+
+1. La tablette et le Mac sont-ils sur le **même réseau Wi-Fi** ? Un réseau « invité »
+   isole souvent les appareils les uns des autres.
+2. Le pare-feu de macOS a-t-il demandé l'autorisation ? Réglages Système ▸ Réseau ▸
+   Pare-feu ▸ Options : autorisez *Piano Live Setup* à recevoir des connexions entrantes.
+3. Essayez l'autre adresse proposée : celle en chiffres marche quand le nom en `.local`
+   échoue.
+4. La clé est sensible à la casse ? Non, mais elle ne contient ni I, ni L, ni O, ni 0,
+   ni 1 — justement pour éviter les confusions.
+
+### La page affiche « Le Mac ne répond plus »
+
+L'application a été quittée, le Mac s'est endormi, ou le Wi-Fi a changé. La page se
+reconnecte toute seule dès que le Mac répond à nouveau.
+
 ### Je veux repartir de zéro
 
 ```bash

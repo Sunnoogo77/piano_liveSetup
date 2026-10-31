@@ -33,6 +33,7 @@ pour tester une installation propre.
 ```
 Sources/Core/
   Model.swift       emplacements, banques et leurs équivalences, EQ, presets, bibliothèque
+  RemoteServer.swift serveur HTTP local pour la page de commande (tablette, téléphone)
   DSP.swift         biquads RBJ, chaîne de traitement, analyseur FFT
   Chords.swift      reconnaissance d'accords et écriture des notes par degré
   Recording.swift   prise, WAV 24 bits, fichier MIDI standard, MusicXML, grille d'accords
@@ -47,7 +48,11 @@ Sources/UI/
   Screens.swift     clavier 88 touches, affichage d'accord, écrans Jeu / Accords / Clavier
   Screens2.swift    écrans Enregistrer et Périphériques
   Main.swift        point d'entrée @main et raccourcis clavier
+Sources/Web/
+  remote.html       la page de commande, transformée en chaîne Swift à la construction
+                    par scripts/gen-web.py — modifiez le HTML, pas le fichier généré
 Sources/Tools/      outils en ligne de commande, un dossier = une cible
+                    MakeIcon fabrique l'icône de l'application à chaque construction
 ```
 
 Un fichier compte : **`Sources/Tools/Preview/main.swift`** rend l'interface hors écran en
@@ -123,6 +128,20 @@ et le calcul est faux. `ProcessorChain.limiterEnabled = false` pendant la mesure
 **Nommez les notes par leur degré, pas par leur classe de hauteur.** La septième d'un C9
 est un Si♭, pas un La♯. Voir `Spelling.noteName(rootPC:degree:actualPC:)`.
 
+**Swift n'applique pas les valeurs par défaut aux clés absentes.** Ajouter un champ à
+`RigConfig` ou à `Preset` rendait illisible la configuration de tous ceux qui mettaient
+à jour : le décodage échouait, l'application retombait silencieusement sur les réglages
+d'usine, et **l'étalonnage de l'utilisateur était perdu**. Les deux types ont maintenant
+un `init(from:)` écrit à la main, qui utilise `decodeIfPresent` avec une valeur de repli.
+**Si vous ajoutez un champ, ajoutez-y sa ligne**, et gardez le test de compatibilité de
+`RecTest` au vert.
+
+**Le pic le plus fort n'est pas la fondamentale.** Sur une note grave de piano, la
+deuxième harmonique dépasse souvent la fondamentale : un détecteur naïf se trompe d'une
+octave, et le test de transposition échoue par intermittence. `fundamentalFrequency`
+redescend tant qu'une sous-harmonique porte une énergie significative. Utilisez-la, pas
+`dominantFrequency`, dès qu'il s'agit d'une hauteur.
+
 **Mesurez la bonne grandeur.** Deux tests ont dû être réécrits parce qu'ils
 mesuraient un seuil arbitraire au lieu de la propriété réelle :
 
@@ -160,7 +179,9 @@ sur le signal en sortie (+12 dB demandés doivent donner ~+12 dB mesurés).
 `make test` : 43 accords de référence, puis la validité des quatre formats d'export
 (en-tête MIDI, MusicXML bien formé avec mesures exactement remplies, en-tête WAV).
 
-`make test-audio` ajoute, sur la vraie sortie audio : les 31 sons produisent du son, la
+`make test-audio` demande un périphérique de sortie. Le contrôle du son interne du
+clavier est ignoré proprement si aucun piano n'est branché. La batterie ajoute, sur la
+vraie sortie audio : les 31 sons produisent du son, la
 transposition décale la hauteur au cent près, aucune note ne reste bloquée, les partages
 clavier routent les bonnes zones, l'EQ agit, l'arrêt d'urgence fonctionne, il reste de la
 marge avant saturation, une prise complète écrit ses quatre fichiers.

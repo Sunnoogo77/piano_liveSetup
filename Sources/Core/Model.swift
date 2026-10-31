@@ -238,6 +238,28 @@ enum Category: String, Codable, CaseIterable {
 }
 
 struct Preset: Codable, Hashable, Identifiable {
+    // Décodage tolérant : un champ ajouté plus tard ne doit pas rendre illisible
+    // la configuration de quelqu'un qui met l'application à jour.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = Preset.placeholder
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? d.name
+        subtitle = try c.decodeIfPresent(String.self, forKey: .subtitle) ?? d.subtitle
+        category = try c.decodeIfPresent(Category.self, forKey: .category) ?? d.category
+        layers = try c.decodeIfPresent([Layer].self, forKey: .layers) ?? d.layers
+        eqBands = try c.decodeIfPresent([EQBand].self, forKey: .eqBands) ?? defaultEQ()
+        drive = try c.decodeIfPresent(Float.self, forKey: .drive) ?? 0
+        tremRate = try c.decodeIfPresent(Float.self, forKey: .tremRate) ?? 0
+        tremDepth = try c.decodeIfPresent(Float.self, forKey: .tremDepth) ?? 0
+        compAmount = try c.decodeIfPresent(Float.self, forKey: .compAmount) ?? 0
+        velocityGamma = try c.decodeIfPresent(Float.self, forKey: .velocityGamma) ?? 1
+        gain = try c.decodeIfPresent(Float.self, forKey: .gain) ?? 1
+        layerMix = try c.decodeIfPresent(Float.self, forKey: .layerMix) ?? 1
+    }
+
+    private static let placeholder = Preset(name: "—", subtitle: "", category: .acoustic,
+                                            layers: [])
+
     var id: String { name }
     var name: String
     var subtitle: String
@@ -253,6 +275,16 @@ struct Preset: Codable, Hashable, Identifiable {
     var layerMix: Float = 1.0          // niveau relatif de la couche d'accompagnement
 
     var hasSecondLayer: Bool { layers.count > 1 }
+
+    init(name: String, subtitle: String, category: Category, layers: [Layer],
+         eqBands: [EQBand] = defaultEQ(), drive: Float = 0, tremRate: Float = 0,
+         tremDepth: Float = 0, compAmount: Float = 0, velocityGamma: Float = 1.0,
+         gain: Float = 1.0, layerMix: Float = 1.0) {
+        self.name = name; self.subtitle = subtitle; self.category = category
+        self.layers = layers; self.eqBands = eqBands; self.drive = drive
+        self.tremRate = tremRate; self.tremDepth = tremDepth; self.compAmount = compAmount
+        self.velocityGamma = velocityGamma; self.gain = gain; self.layerMix = layerMix
+    }
 }
 
 // MARK: - Bibliothèque
@@ -430,12 +462,44 @@ enum Library {
 // MARK: - Configuration persistée
 
 struct RigConfig: Codable {
+    // Même précaution que pour Preset : on ne perd jamais l'étalonnage de
+    // quelqu'un parce qu'un réglage est apparu dans une version plus récente.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        soundsDir = try c.decodeIfPresent(String.self, forKey: .soundsDir) ?? AppPaths.sounds.path
+        presets = try c.decodeIfPresent([Preset].self, forKey: .presets) ?? Library.all()
+        masterVolume = try c.decodeIfPresent(Float.self, forKey: .masterVolume) ?? 0.8
+        audioDeviceName = try c.decodeIfPresent(String.self, forKey: .audioDeviceName) ?? ""
+        bufferFrames = try c.decodeIfPresent(UInt32.self, forKey: .bufferFrames) ?? 128
+        localControlOff = try c.decodeIfPresent(Bool.self, forKey: .localControlOff) ?? true
+        currentPreset = try c.decodeIfPresent(String.self, forKey: .currentPreset) ?? "Concert Grand"
+        remoteEnabled = try c.decodeIfPresent(Bool.self, forKey: .remoteEnabled) ?? false
+        remotePort = try c.decodeIfPresent(Int.self, forKey: .remotePort) ?? 8787
+        remoteKey = try c.decodeIfPresent(String.self, forKey: .remoteKey) ?? ""
+    }
+
+    init(soundsDir: String, presets: [Preset], masterVolume: Float = 0.8,
+         audioDeviceName: String = "", bufferFrames: UInt32 = 128,
+         localControlOff: Bool = true, currentPreset: String = "Concert Grand",
+         remoteEnabled: Bool = false, remotePort: Int = 8787, remoteKey: String = "") {
+        self.soundsDir = soundsDir; self.presets = presets
+        self.masterVolume = masterVolume; self.audioDeviceName = audioDeviceName
+        self.bufferFrames = bufferFrames; self.localControlOff = localControlOff
+        self.currentPreset = currentPreset; self.remoteEnabled = remoteEnabled
+        self.remotePort = remotePort; self.remoteKey = remoteKey
+    }
+
     var soundsDir: String
     var presets: [Preset]
     var masterVolume: Float = 0.8
     var audioDeviceName: String = "ARIUS"
     var bufferFrames: UInt32 = 128
     var localControlOff: Bool = true
+    /// Le contrôle à distance se rallume au lancement s'il était actif.
+    var remoteEnabled: Bool = false
+    var remotePort: Int = 8787
+    /// Conservée pour que la tablette n'ait pas à se reconnecter à chaque lancement.
+    var remoteKey: String = ""
     var currentPreset: String = "Concert Grand"
 
     static func defaults() -> RigConfig {

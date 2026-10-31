@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0A0C10">
+<title>Piano Live Setup</title>
+<style>
+  :root{
+    --bg0:#0A0C10; --bg1:#11141A; --bg2:#171B23; --bg3:#212734;
+    --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+    --t0:#EDF1F7; --t1:#97A1B0; --t2:#5C6676;
+    --accent:#4FD1C5; --blue:#7AA2F7; --ok:#54C07A; --warn:#E0B341; --hot:#E05A4F;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg0);color:var(--t0);
+    font:15px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif;
+    overscroll-behavior:none}
+  body{padding:0 14px calc(92px + env(safe-area-inset-bottom))}
+  .cap{font-size:10px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--t2)}
+  .panel{background:var(--bg1);border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}
+  button{font:inherit;color:inherit;background:var(--bg2);border:1px solid var(--line2);
+    border-radius:10px;padding:12px;min-height:48px;cursor:pointer}
+  button:active{background:var(--bg3)}
+  button.on{background:var(--accent);border-color:transparent;color:#07090c;font-weight:600}
+  .row{display:flex;gap:8px;align-items:center}
+  .grow{flex:1}
+
+  header{position:sticky;top:0;z-index:10;background:rgba(10,12,16,.92);
+    backdrop-filter:saturate(1.4) blur(14px);padding:calc(10px + env(safe-area-inset-top)) 0 10px;
+    border-bottom:1px solid var(--line)}
+  #sound{font-size:26px;font-weight:600;letter-spacing:-.3px;margin:2px 0 0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #cat{color:var(--accent)}
+  #chord{font-size:30px;font-weight:600;color:var(--accent);text-align:right;line-height:1}
+  #chordq{font-size:10px;color:var(--t2);text-align:right}
+  .meter{height:6px;background:var(--bg2);border-radius:3px;overflow:hidden;margin-top:4px}
+  .meter i{display:block;height:100%;width:0;background:var(--ok);transition:width .08s linear}
+
+  #warn{display:none;background:rgba(224,179,65,.1);border:1px solid rgba(224,179,65,.35);
+    color:var(--warn);border-radius:12px;padding:10px 12px;margin:12px 0;font-size:13px}
+
+  .pitch{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .pitch button{font-size:20px;font-weight:600;min-height:60px}
+  #tval{font-size:44px;font-weight:600;text-align:center;line-height:1;margin:2px 0 10px;
+    font-variant-numeric:tabular-nums}
+  #tval.on{color:var(--accent)}
+
+  input[type=range]{-webkit-appearance:none;width:100%;height:30px;background:transparent}
+  input[type=range]::-webkit-slider-runnable-track{height:5px;border-radius:3px;background:var(--bg3)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;
+    border-radius:50%;background:var(--t0);margin-top:-10px;box-shadow:0 1px 3px rgba(0,0,0,.6)}
+  .val{font-variant-numeric:tabular-nums;color:var(--t1);font-size:13px;min-width:62px;text-align:right}
+
+  #chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;-webkit-overflow-scrolling:touch}
+  #chips button{padding:7px 12px;min-height:0;border-radius:999px;font-size:13px;white-space:nowrap}
+  #presets{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+  #presets button{text-align:left;padding:10px 12px;line-height:1.25}
+  #presets .n{font-weight:600;font-size:14px}
+  #presets .s{font-size:11px;color:var(--t2);margin-top:2px}
+  #presets button.on .s{color:rgba(7,9,12,.65)}
+
+  #keys{display:flex;height:54px;margin-top:4px;border-radius:8px;overflow:hidden;background:#0f0f0f}
+  #keys .w{flex:1;background:#e8e8e8;border-right:1px solid #999;position:relative}
+  #keys .b{width:0;position:relative}
+  #keys .b i{position:absolute;left:-7px;top:0;width:14px;height:62%;background:#141414;
+    border-radius:0 0 3px 3px;z-index:2}
+  #keys .w.hit{background:var(--accent)} #keys .w.hit.lo{background:var(--blue)}
+  #keys .b.hit i{background:var(--accent)} #keys .b.hit.lo i{background:var(--blue)}
+
+  .eqrow{display:grid;grid-template-columns:76px 1fr 64px;gap:8px;align-items:center;
+    padding:8px 0;border-bottom:1px solid var(--line)}
+  .eqrow:last-child{border-bottom:0}
+  .eqrow b{font-size:11px;font-weight:600;color:var(--t1)}
+  .eqrow small{display:block;font-size:10px;color:var(--t2);font-variant-numeric:tabular-nums}
+
+  footer{position:fixed;left:0;right:0;bottom:0;display:flex;gap:8px;padding:10px 14px
+    calc(10px + env(safe-area-inset-bottom));background:rgba(10,12,16,.94);
+    backdrop-filter:blur(14px);border-top:1px solid var(--line)}
+  footer button{flex:1;font-weight:600}
+  #panic{background:rgba(224,90,79,.16);border-color:rgba(224,90,79,.45);color:#ff9d93}
+  #rec.on{background:var(--hot);border-color:transparent;color:#fff}
+  #gate{position:fixed;inset:0;background:var(--bg0);display:none;place-items:center;z-index:50;padding:24px}
+  #gate div{max-width:320px;text-align:center}
+  #gate input{width:100%;text-align:center;font-size:24px;letter-spacing:6px;padding:14px;
+    background:var(--bg2);border:1px solid var(--line2);border-radius:12px;color:var(--t0);
+    text-transform:uppercase;margin:14px 0}
+  #off{position:fixed;inset:0;background:rgba(10,12,16,.82);display:none;place-items:center;
+    z-index:40;font-size:14px;color:var(--warn);backdrop-filter:blur(3px)}
+</style>
+</head>
+<body>
+
+<div id="gate"><div>
+  <div style="font-size:34px">🎹</div>
+  <h2 style="margin:10px 0 0;font-size:19px">Piano Live Setup</h2>
+  <p style="color:var(--t1);font-size:13px;margin:6px 0 0">
+    Saisissez la clé affichée sur le Mac, onglet Périphériques.</p>
+  <input id="key" maxlength="6" autocapitalize="characters" autocomplete="off" placeholder="XXXXXX">
+  <button class="on" style="width:100%" onclick="useKey()">Se connecter</button>
+  <p id="gerr" style="color:var(--hot);font-size:12px;height:16px;margin:10px 0 0"></p>
+</div></div>
+
+<div id="off">Le Mac ne répond plus…</div>
+
+<header>
+  <div class="row">
+    <div class="grow" style="min-width:0">
+      <div class="cap" id="cat">—</div>
+      <h1 id="sound">—</h1>
+    </div>
+    <div style="min-width:104px">
+      <div id="chord">—</div>
+      <div id="chordq"></div>
+      <div class="meter"><i id="mL"></i></div>
+      <div class="meter"><i id="mR"></i></div>
+    </div>
+  </div>
+</header>
+
+<div id="warn">Aucun clavier détecté sur le Mac. Branchez le piano et allumez-le.</div>
+
+<div class="panel">
+  <div class="cap">Transposition</div>
+  <div id="tval">0</div>
+  <div class="pitch">
+    <button onclick="cmd('transpose',{delta:-1})">−1</button>
+    <button id="tzero" onclick="cmd('transpose',{set:0})">0</button>
+    <button onclick="cmd('transpose',{delta:1})">+1</button>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <button class="grow" onclick="cmd('octave',{delta:-1})">Octave −</button>
+    <button class="grow" onclick="cmd('octave',{delta:1})">Octave +</button>
+  </div>
+  <div id="keys"></div>
+</div>
+
+<div class="panel">
+  <div class="cap">Niveaux</div>
+  <div class="row"><span style="width:84px;font-size:13px">Général</span>
+    <input class="grow" type="range" id="master" min="0" max="1" step="0.01"
+      oninput="live('master',this.value)" onchange="cmd('master',{value:+this.value})">
+    <span class="val" id="masterv">—</span></div>
+  <div class="row"><span style="width:84px;font-size:13px">Nappe</span>
+    <input class="grow" type="range" id="layer" min="0" max="1" step="0.01"
+      oninput="live('layer',this.value)" onchange="cmd('layer',{value:+this.value})">
+    <span class="val" id="layerv">—</span></div>
+</div>
+
+<div class="panel">
+  <div class="cap">Sons</div>
+  <div id="chips"></div>
+  <div id="presets"></div>
+</div>
+
+<div class="panel">
+  <div class="row"><span class="cap grow">Égaliseur</span>
+    <button style="min-height:34px;padding:6px 12px;font-size:13px"
+      onclick="cmd('eqreset',{})">Neutre</button></div>
+  <div id="eq"></div>
+</div>
+
+<footer>
+  <button id="panic" onclick="cmd('panic',{})">Arrêt des notes</button>
+  <button id="rec" onclick="cmd('record',{})">Enregistrer</button>
+</footer>
+
+<script>
+const $ = s => document.querySelector(s);
+let KEY = new URLSearchParams(location.search).get('k') || localStorage.getItem('plsKey') || '';
+let library = [], filter = null, dragging = null, failures = 0;
+
+function gate(show, msg){ $('#gate').style.display = show ? 'grid' : 'none'; if(msg) $('#gerr').textContent = msg; }
+function useKey(){
+  const v = $('#key').value.trim().toUpperCase();
+  if(v.length < 4){ $('#gerr').textContent = 'Clé trop courte'; return; }
+  KEY = v; localStorage.setItem('plsKey', v); gate(false); loadLibrary(); poll();
+}
+async function api(path, opts){
+  const r = await fetch(path + (path.includes('?') ? '&' : '?') + 'k=' + encodeURIComponent(KEY), opts);
+  if(r.status === 403){ localStorage.removeItem('plsKey'); gate(true, 'Clé refusée'); throw new Error('403'); }
+  return r;
+}
+async function cmd(action, extra){
+  try{
+    await api('/api/cmd', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(Object.assign({action}, extra||{}))});
+    if(navigator.vibrate) navigator.vibrate(8);
+    tick();
+  }catch(e){}
+}
+function live(which, v){
+  $('#'+which+'v').textContent = Math.round(v*100) + ' %';
+  dragging = which; clearTimeout(window['t'+which]);
+  window['t'+which] = setTimeout(()=>dragging=null, 700);
+}
+
+async function loadLibrary(){
+  try{
+    library = await (await api('/api/library')).json();
+    const cats = [...new Set(library.map(p=>p.category))];
+    const chips = $('#chips'); chips.innerHTML = '';
+    const add = (label, value) => {
+      const b = document.createElement('button');
+      b.textContent = label; b.onclick = () => { filter = value; drawPresets(); drawChips(); };
+      b.dataset.v = value === null ? '' : value; chips.appendChild(b);
+    };
+    add('Tout', null); cats.forEach(c => add(c, c));
+    drawChips(); drawPresets();
+  }catch(e){}
+}
+function drawChips(){
+  [...$('#chips').children].forEach(b => b.classList.toggle('on', (b.dataset.v||null) === filter));
+}
+function drawPresets(current){
+  const box = $('#presets'); box.innerHTML = '';
+  library.forEach((p,i) => {
+    if(filter && p.category !== filter) return;
+    const b = document.createElement('button');
+    b.innerHTML = '<div class="n"></div><div class="s"></div>';
+    b.querySelector('.n').textContent = p.name;
+    b.querySelector('.s').textContent = p.subtitle;
+    b.dataset.i = i;
+    b.onclick = () => cmd('preset', {index: i});
+    box.appendChild(b);
+  });
+}
+function drawKeys(sounding, split){
+  const box = $('#keys');
+  if(!box.children.length){
+    for(let n = 21; n <= 108; n++){
+      const black = [1,3,6,8,10].includes(((n%12)+12)%12);
+      const d = document.createElement('div');
+      d.className = black ? 'b' : 'w';
+      if(black) d.innerHTML = '<i></i>';
+      d.dataset.n = n; box.appendChild(d);
+    }
+  }
+  const set = new Set(sounding);
+  [...box.children].forEach(d => {
+    const n = +d.dataset.n, on = set.has(n);
+    d.classList.toggle('hit', on);
+    d.classList.toggle('lo', on && n < split);
+  });
+}
+function drawEQ(bands){
+  const box = $('#eq');
+  if(box.children.length !== bands.length){
+    box.innerHTML = '';
+    bands.forEach((b,i) => {
+      const row = document.createElement('div');
+      row.className = 'eqrow';
+      row.innerHTML = '<div><b></b><small></small></div>'
+        + '<input type="range" min="-18" max="18" step="0.5">'
+        + '<div class="val"></div>';
+      row.querySelector('input').oninput = e => {
+        row.querySelector('.val').textContent = (+e.target.value).toFixed(1);
+        dragging = 'eq'; clearTimeout(window.teq);
+        window.teq = setTimeout(()=>dragging=null, 700);
+      };
+      row.querySelector('input').onchange = e =>
+        cmd('eqband', {index:i, gain:+e.target.value});
+      box.appendChild(row);
+    });
+  }
+  [...box.children].forEach((row,i) => {
+    const b = bands[i];
+    row.querySelector('b').textContent = b.label;
+    row.querySelector('small').textContent = b.freq >= 1000
+      ? (b.freq/1000).toFixed(1)+' kHz' : Math.round(b.freq)+' Hz';
+    row.style.opacity = b.gainUsed ? 1 : .5;
+    const input = row.querySelector('input');
+    input.disabled = !b.gainUsed;
+    if(dragging !== 'eq'){
+      input.value = b.gain;
+      row.querySelector('.val').textContent = b.gainUsed ? (+b.gain).toFixed(1) : '—';
+    }
+  });
+}
+function db2pct(db){ return Math.max(0, Math.min(100, (db + 54) / 54 * 100)); }
+
+async function tick(){
+  try{
+    const s = await (await api('/api/state')).json();
+    failures = 0; $('#off').style.display = 'none';
+    $('#sound').textContent = s.preset;
+    $('#cat').textContent = s.category;
+    $('#chord').textContent = s.chord || '—';
+    $('#chordq').textContent = s.chordQuality || '';
+    const t = s.transpose + s.octave*12;
+    $('#tval').textContent = t > 0 ? '+'+t : ''+t;
+    $('#tval').classList.toggle('on', t !== 0);
+    $('#tzero').classList.toggle('on', t !== 0);
+    $('#warn').style.display = s.hasKeyboard ? 'none' : 'block';
+    $('#rec').classList.toggle('on', s.recording);
+    $('#rec').textContent = s.recording ? 'Arrêter ('+s.recSeconds+' s)' : 'Enregistrer';
+    const L = $('#mL'), R = $('#mR');
+    L.style.width = db2pct(s.peakL)+'%'; R.style.width = db2pct(s.peakR)+'%';
+    const col = d => d > -1.5 ? 'var(--hot)' : d > -8 ? 'var(--warn)' : 'var(--ok)';
+    L.style.background = col(s.peakL); R.style.background = col(s.peakR);
+    if(dragging !== 'master'){ $('#master').value = s.master; $('#masterv').textContent = Math.round(s.master*100)+' %'; }
+    if(dragging !== 'layer'){
+      $('#layer').value = s.layerMix; $('#layer').disabled = !s.hasLayer;
+      $('#layerv').textContent = s.hasLayer ? Math.round(s.layerMix*100)+' %' : '—';
+    }
+    [...$('#presets').children].forEach(b => b.classList.toggle('on', +b.dataset.i === s.presetIndex));
+    drawKeys(s.sounding || [], s.split || 60);
+    if(s.eq) drawEQ(s.eq);
+  }catch(e){
+    if(e.message !== '403' && ++failures > 3) $('#off').style.display = 'grid';
+  }
+}
+function poll(){ tick(); setInterval(tick, 220); }
+
+if(!KEY){ gate(true); } else { localStorage.setItem('plsKey', KEY); loadLibrary(); poll(); }
+history.replaceState(null, '', location.pathname);
+</script>
+</body>
+</html>

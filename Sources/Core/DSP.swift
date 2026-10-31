@@ -379,6 +379,31 @@ final class SpectrumTap: @unchecked Sendable {
         return (Float(best) + delta) * binHz
     }
 
+    /// Fondamentale, et non simple pic le plus fort : sur une note grave de piano
+    /// la deuxième harmonique dépasse souvent la fondamentale, et un détecteur
+    /// naïf se trompe d'une octave. On redescend donc tant qu'une sous-harmonique
+    /// porte encore une énergie significative.
+    func fundamentalFrequency(between lo: Float, and hi: Float) -> Float {
+        let binHz = sampleRate / Float(Self.fftSize)
+        var f = dominantFrequency(between: lo, and: hi)
+        guard f > 0 else { return 0 }
+        let peak = energyAt(f, binHz: binHz)
+        for _ in 0..<3 {
+            let half = f / 2
+            guard half >= lo else { break }
+            // 12 % du pic suffit : une fondamentale faible reste une fondamentale.
+            if energyAt(half, binHz: binHz) > peak * 0.12 { f = half } else { break }
+        }
+        return f
+    }
+
+    /// Énergie au voisinage immédiat d'une fréquence (trois bins), en linéaire.
+    private func energyAt(_ freq: Float, binHz: Float) -> Float {
+        let b = Int((freq / binHz).rounded())
+        guard b > 0, b < Self.fftSize / 2 - 1 else { return 0 }
+        return max(binMag[b - 1], max(binMag[b], binMag[b + 1]))
+    }
+
     /// Énergie moyenne, en dB, dans une plage de fréquences. Sert à vérifier l'EQ.
     func energyDB(between lo: Float, and hi: Float) -> Float {
         let binHz = sampleRate / Float(Self.fftSize)

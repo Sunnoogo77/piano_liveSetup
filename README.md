@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/images/icon.png" width="112" alt="">
+
 # Piano Live Setup
 
 **Votre Mac devient l'expandeur de n'importe quel piano numérique branché en USB.**
@@ -113,6 +115,28 @@ Un bouton, et chaque prise écrit :
 | `partition.musicxml` | la partition, deux portées, pour MuseScore, Dorico, Finale… |
 | `accords.txt` | la grille d'accords horodatée |
 
+### Piloter depuis un iPad ou un téléphone
+
+<img src="docs/images/remote-tablet.jpg" width="360" align="right" alt="La page de commande sur une tablette">
+
+Onglet **Périphériques**, activez **Contrôle à distance**. L'application publie une page
+sur votre réseau local. Scannez le QR code affiché, ou tapez l'adresse dans le navigateur
+de la tablette : vous y retrouvez les sons, la transposition, les niveaux, l'égaliseur,
+l'arrêt des notes et l'enregistrement.
+
+**Rien à installer sur la tablette.** C'est un navigateur, c'est tout — iPad, iPhone,
+tablette Android, autre ordinateur, peu importe.
+
+Le Mac continue de faire le son : vous gardez les 2,9 ms de latence et le piano à
+16 couches de vélocité. La tablette n'est qu'une surface de commande, à poser sur le
+pupitre pendant que le Mac reste près du piano.
+
+Une clé d'accès protège la page des curieux du même réseau ; elle est conservée, donc
+l'appareil n'a à se connecter qu'une fois. Le premier lancement peut faire apparaître une
+demande du pare-feu macOS : autorisez les connexions entrantes.
+
+<br clear="right">
+
 ### Un micro, à l'occasion
 
 Entrée micro avec gain, compresseur et un **égaliseur 7 bandes indépendant** de celui du
@@ -159,9 +183,13 @@ mesures.
 Les détails sont dans [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Ce que j'ai appris en
 le construisant — les pièges — est dans [AGENTS.md](AGENTS.md).
 
-### Et sur iPad, Windows, Linux ?
+### Et faire tourner l'application elle-même sur iPad, Windows, Linux ?
 
-Rien n'est porté à ce jour, et je ne vais pas prétendre le contraire. Mais le cœur est
+C'est autre chose que le contrôle à distance ci-dessus : là, c'est le moteur de son qui
+tournerait sur l'appareil, sans Mac. **Rien n'est porté à ce jour**, et je ne vais pas
+prétendre le contraire. À noter pour l'iPad et l'iPhone : Apple n'autorise pas
+l'installation d'une application par un script ou depuis un dépôt — il faut Xcode ou
+l'App Store. Sur Windows et Linux, cet obstacle n'existe pas. Mais le cœur est
 déjà portable, et [docs/PORTING.md](docs/PORTING.md) détaille ce que chaque système
 demanderait — avec le chemin qui me semble le plus rentable : un moteur sans interface
 piloté par une page web, ce qui donnerait d'un coup Linux, Windows, **et le contrôle

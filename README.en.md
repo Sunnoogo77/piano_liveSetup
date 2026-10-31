@@ -69,6 +69,13 @@ reads *E G♯ B D*. 43 reference chords are checked automatically.
 `performance.mid` (exact timing, replayable on the piano), `partition.musicxml` (two
 staves, for MuseScore, Dorico, Finale), `accords.txt` (time-stamped chord chart).
 
+**Remote control from a tablet.** In the Devices tab, turn on remote control: the app
+publishes a page on your local network. Scan the QR code shown, or type the address into
+the tablet's browser, and you get the sounds, transposition, levels, EQ, panic and
+recording. **Nothing to install on the tablet** — any browser will do. The Mac keeps
+making the sound, so you keep the 2.9 ms latency and the 16-velocity-layer piano. An
+access key keeps other people on the network out, and it is remembered.
+
 **Microphone input** with its own gain, compressor and independent 7-band EQ. Monitoring
 is off by default — an open mic next to the piano's speakers will howl.
 

@@ -25,6 +25,9 @@ jobs:
         # d'accords et la validité des quatre formats d'export.
         run: ./scripts/test.sh
 
+      - name: Contrôle à distance
+        run: build/bin/remotetest
+
       - name: Le cœur doit compiler sans framework Apple
         run: make portable
 

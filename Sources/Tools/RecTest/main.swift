@@ -93,6 +93,41 @@ check("signature RIFF/WAVE", String(decoding: head[0..<4], as: UTF8.self) == "RI
 check("24 bits stéréo 44,1 kHz", head[34] == 24 && head[22] == 2)
 check("données écrites", size > 100_000, "\(size ?? 0) octets, \(String(format: "%.2f", Double(size ?? 0) / (44100 * 6))) s")
 
+print("--- Configuration tolérante aux versions ---")
+// Une configuration écrite par une version plus ancienne, à qui il manque des
+// champs, doit se relire sans perdre ce qu'elle contient.
+do {
+    var cfg = RigConfig.defaults()
+    cfg.masterVolume = 0.42
+    cfg.presets[0].gain = 1.234
+    cfg.presets[0].eqBands[4].gain = 7.5
+    cfg.remoteKey = "ABC123"
+    let full = try! JSONEncoder().encode(cfg)
+    var obj = try! JSONSerialization.jsonObject(with: full) as! [String: Any]
+
+    // On retire les champs récents, comme le ferait un fichier d'avant.
+    for key in ["remoteEnabled", "remotePort", "remoteKey"] { obj.removeValue(forKey: key) }
+    var presets = obj["presets"] as! [[String: Any]]
+    presets[0].removeValue(forKey: "velocityGamma")
+    presets[0].removeValue(forKey: "compAmount")
+    obj["presets"] = presets
+    let older = try! JSONSerialization.data(withJSONObject: obj)
+
+    if let back = try? JSONDecoder().decode(RigConfig.self, from: older) {
+        check("relue sans erreur", true, "\(back.presets.count) presets")
+        check("le volume est conservé", abs(back.masterVolume - 0.42) < 0.001)
+        check("l'étalonnage est conservé", abs(back.presets[0].gain - 1.234) < 0.001,
+              String(format: "gain %.3f", back.presets[0].gain))
+        check("les réglages d'égaliseur sont conservés",
+              abs(back.presets[0].eqBands[4].gain - 7.5) < 0.001)
+        check("les champs absents prennent leur valeur par défaut",
+              back.remotePort == 8787 && back.remoteKey.isEmpty
+              && abs(back.presets[0].velocityGamma - 1) < 0.001)
+    } else {
+        check("relue sans erreur", false, "une configuration plus ancienne est rejetée")
+    }
+}
+
 print("\n--- Analyseur de spectre ---")
 #if canImport(Accelerate) && !PLS_PORTABLE
 print("  moteur FFT : Accelerate (Apple)")

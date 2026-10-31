@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreImage.CIFilterBuiltins
 
 // Système de design : palette de studio, sombre et froide, une seule couleur
 // d'accent. Les couleurs vives sont réservées à l'information (niveau, alerte),
@@ -71,6 +72,37 @@ extension Font {
     }
     static func value(_ size: CGFloat = 13, _ w: Font.Weight = .medium) -> Font {
         .system(size: size, weight: w, design: .rounded).monospacedDigit()
+    }
+}
+
+/// QR code d'une adresse, pour ouvrir la page sur une tablette sans la taper.
+struct QRCode: View {
+    let text: String
+    var size: CGFloat = 132
+
+    var body: some View {
+        if let img = Self.make(text) {
+            Image(nsImage: img)
+                .interpolation(.none)
+                .resizable()
+                .frame(width: size, height: size)
+                .padding(8)
+                .background(Color.white, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        } else {
+            RoundedRectangle(cornerRadius: 10).fill(Tone.bg2).frame(width: size, height: size)
+        }
+    }
+
+    private static func make(_ text: String) -> NSImage? {
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(text.utf8)
+        filter.correctionLevel = "M"
+        guard let out = filter.outputImage else { return nil }
+        let scaled = out.transformed(by: CGAffineTransform(scaleX: 10, y: 10))
+        let ctx = CIContext()
+        guard let cg = ctx.createCGImage(scaled, from: scaled.extent) else { return nil }
+        return NSImage(cgImage: cg, size: NSSize(width: scaled.extent.width,
+                                                 height: scaled.extent.height))
     }
 }
 

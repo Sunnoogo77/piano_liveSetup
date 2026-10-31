@@ -85,6 +85,13 @@ final class RigModel: ObservableObject {
     @Published var micPeakDB: Float = -60
     @Published var micMessage: String?
 
+    // Contrôle à distance
+    let remote = RemoteServer()
+    @Published var remoteOn = false
+    @Published var remoteAddresses: [String] = []
+    @Published var remoteKey = ""
+    @Published var remoteMessage: String?
+
     @Published var peakDBL: Float = -60
     @Published var peakDBR: Float = -60
     @Published var holdL: Float = -60
@@ -144,6 +151,10 @@ final class RigModel: ObservableObject {
         syncFromEngine(startIndex)
         refreshTakes()
         refreshDevices()
+        remote.onCommand = { [weak self] action, args in
+            MainActor.assumeIsolated { self?.handleRemote(action, args) }
+        }
+        if engine.config.remoteEnabled { toggleRemote() }
         engine.onSetupChanged = { [weak self] in
             MainActor.assumeIsolated {
                 guard let self else { return }
@@ -194,6 +205,85 @@ final class RigModel: ObservableObject {
             recNotes = engine.recordedNoteCount
         }
         if micOn { micPeakDB = engine.mic.inputPeak > 0 ? 20 * log10(engine.mic.inputPeak) : -60 }
+        if remoteOn { publishRemoteState() }
+    }
+
+    // MARK: Contrôle à distance
+
+    func toggleRemote() {
+        if remoteOn {
+            remote.stop(); remoteOn = false; remoteAddresses = []; remoteKey = ""
+            remoteMessage = nil
+            engine.setRemoteEnabled(false)
+            save()
+        } else {
+            guard remote.start(port: UInt16(engine.config.remotePort),
+                               key: engine.config.remoteKey) else {
+                remoteMessage = remote.lastError ?? "démarrage impossible"
+                return
+            }
+            remoteOn = true
+            remoteKey = remote.token
+            remoteAddresses = remote.addresses
+            remoteMessage = remote.addresses.isEmpty
+                ? "Aucune adresse réseau : le Mac est-il connecté au Wi-Fi ?" : nil
+            engine.setRemoteEnabled(true)
+            engine.setRemoteKey(remote.token)
+            save()                       // la clé survit même à un arrêt brutal
+            publishRemoteLibrary()
+            publishRemoteState()
+        }
+    }
+
+    private func publishRemoteLibrary() {
+        let list = presets.map { ["name": $0.name, "subtitle": $0.subtitle,
+                                  "category": $0.category.rawValue] }
+        if let d = try? JSONSerialization.data(withJSONObject: list) { remote.publish(library: d) }
+    }
+
+    private func publishRemoteState() {
+        let p = preset
+        let splitPoint = (p.category == .split && p.layers.count > 1) ? Int(p.layers[1].loKey) : 60
+        let eqList: [[String: Any]] = bands.map {
+            ["label": $0.label, "freq": $0.freq, "gain": $0.gain, "gainUsed": $0.kind.usesGain]
+        }
+        let state: [String: Any] = [
+            "preset": p.name, "category": p.category.rawValue, "presetIndex": presetIndex,
+            "transpose": Int(transpose), "octave": Int(octave),
+            "master": master, "layerMix": layerMix, "hasLayer": p.hasSecondLayer,
+            "chord": chord.symbol, "chordQuality": chord.quality,
+            "sounding": sounding, "split": splitPoint,
+            "peakL": peakDBL, "peakR": peakDBR,
+            "hasKeyboard": hasKeyboard, "recording": isRecording,
+            "recSeconds": Int(recSeconds), "eq": eqList,
+        ]
+        if let d = try? JSONSerialization.data(withJSONObject: state) { remote.publish(state: d) }
+    }
+
+    private func handleRemote(_ action: String, _ args: [String: Any]) {
+        switch action {
+        case "preset":
+            if let i = args["index"] as? Int { select(i) }
+        case "transpose":
+            if let set = args["set"] as? Int, set == 0 { resetPitch() }
+            else if let d = args["delta"] as? Int { nudgeTranspose(Int32(d)) }
+        case "octave":
+            if let d = args["delta"] as? Int { nudgeOctave(Int32(d)) }
+        case "master":
+            if let v = args["value"] as? Double { setMaster(Float(v)) }
+        case "layer":
+            if let v = args["value"] as? Double { setLayer(Float(v)) }
+        case "panic": panic()
+        case "record": toggleRecording()
+        case "eqband":
+            if let i = args["index"] as? Int, let g = args["gain"] as? Double,
+               bands.indices.contains(i) {
+                bands[i].gain = Float(g); commitBand(i)
+            }
+        case "eqreset": resetEQ()
+        default: break
+        }
+        publishRemoteState()
     }
 
     // MARK: Enregistrement
@@ -331,7 +421,7 @@ final class RigModel: ObservableObject {
         let enc = JSONEncoder(); enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         try? enc.encode(cfg).write(to: configURL)
     }
-    func shutdown() { save(); engine.shutdown() }
+    func shutdown() { remote.stop(); save(); engine.shutdown() }
 }
 
 // MARK: - Écran de chargement

@@ -5,6 +5,7 @@
   <key>CFBundleName</key>                 <string>Piano Live Setup</string>
   <key>CFBundleDisplayName</key>          <string>Piano Live Setup</string>
   <key>CFBundleExecutable</key>           <string>PianoLiveSetup</string>
+  <key>CFBundleIconFile</key>            <string>AppIcon</string>
   <key>CFBundleIdentifier</key>           <string>local.piano.livesetup</string>
   <key>CFBundlePackageType</key>          <string>APPL</string>
   <key>CFBundleShortVersionString</key>   <string>1.0</string>
