@@ -1,0 +1,306 @@
+import SwiftUI
+import AppKit
+
+// MARK: - Écran « Enregistrer »
+
+struct RecordScreen: View {
+    @ObservedObject var m: RigModel
+
+    var body: some View {
+        VStack(spacing: Metric.gap) {
+            Panel {
+                HStack(alignment: .center, spacing: 20) {
+                    Button { m.toggleRecording() } label: {
+                        ZStack {
+                            Circle()
+                                .fill(m.isRecording ? Tone.hot : Tone.bg2)
+                                .frame(width: 68, height: 68)
+                            Circle().strokeBorder(m.isRecording ? Tone.hot.opacity(0.4) : Tone.line2,
+                                                  lineWidth: 2).frame(width: 78, height: 78)
+                            Image(systemName: m.isRecording ? "stop.fill" : "record.circle")
+                                .font(.system(size: m.isRecording ? 24 : 30, weight: .medium))
+                                .foregroundStyle(m.isRecording ? .white : Tone.hot)
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Caption(text: m.isRecording ? "Enregistrement en cours" : "Prêt à enregistrer",
+                                color: m.isRecording ? Tone.hot : Tone.txt2)
+                        Text(timeLabel)
+                            .font(.system(size: 36, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(m.isRecording ? Tone.txt0 : Tone.txt2)
+                        Text(m.isRecording ? "\(m.recNotes) note\(m.recNotes == 1 ? "" : "s") · \(m.preset.name)"
+                                           : "Le son actif et la transposition sont enregistrés avec la prise")
+                            .font(.system(size: 11)).foregroundStyle(Tone.txt2)
+                    }
+                    Spacer(minLength: 8)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Toggle(isOn: $m.recordAudio) {
+                            Text("Enregistrer aussi l'audio (WAV 24 bits)")
+                                .font(.system(size: 11)).foregroundStyle(Tone.txt1)
+                        }
+                        .toggleStyle(.switch).tint(Tone.accent).disabled(m.isRecording)
+                        HStack(spacing: 8) {
+                            Caption(text: "Tempo de la partition")
+                            Text("\(Int(m.tempo)) bpm").font(.value(11)).foregroundStyle(Tone.txt1)
+                        }
+                        Slider(value: $m.tempo, in: 40...200, step: 1)
+                            .controlSize(.small).tint(Tone.accent)
+                            .frame(width: 230).disabled(m.isRecording)
+                    }
+                    .frame(width: 250)
+                }
+            }
+
+            Panel(title: "Ce qui est produit à chaque prise") {
+                HStack(alignment: .top, spacing: 10) {
+                    produced("waveform", "audio.wav", "Le son exact qui sort, 24 bits stéréo")
+                    produced("pianokeys", "performance.mid", "Rejouable sur le piano, timing exact")
+                    produced("doc.richtext", "partition.musicxml", "Partition quantifiée, deux portées")
+                    produced("music.quarternote.3", "accords.txt", "Grille d'accords horodatée")
+                }
+            }
+
+            Panel(title: "Prises enregistrées", trailing: AnyView(
+                Button { m.refreshTakes() } label: {
+                    Image(systemName: "arrow.clockwise").font(.system(size: 10))
+                        .foregroundStyle(Tone.txt2)
+                }.buttonStyle(.plain))) {
+                if m.takes.isEmpty {
+                    Text("Aucune prise pour l'instant.")
+                        .font(.system(size: 12)).foregroundStyle(Tone.txt2)
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 14)
+                } else {
+                    Scroll {
+                        VStack(spacing: 6) {
+                            ForEach(m.takes) { t in takeRow(t) }
+                        }
+                    }
+                    .frame(maxHeight: 230)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var timeLabel: String {
+        let s = Int(m.recSeconds)
+        return String(format: "%02d:%02d", s / 60, s % 60)
+    }
+
+    private func produced(_ symbol: String, _ name: String, _ desc: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                Image(systemName: symbol).font(.system(size: 11)).foregroundStyle(Tone.accent)
+                Text(name).font(.system(size: 11, weight: .semibold)).foregroundStyle(Tone.txt0)
+            }
+            Text(desc).font(.system(size: 10)).foregroundStyle(Tone.txt2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Tone.bg2, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func takeRow(_ t: TakeMeta) -> some View {
+        let dir = TakeStore.folder(t.id)
+        return HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(t.name).font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(Tone.txt0).lineLimit(1)
+                Text("\(dateLabel(t.date)) · \(String(format: "%.0f", t.duration)) s · \(t.noteCount) notes · \(t.preset)"
+                     + (t.transpose != 0 ? " · transposé \(t.transpose > 0 ? "+" : "")\(t.transpose)" : ""))
+                    .font(.system(size: 10)).foregroundStyle(Tone.txt2).lineLimit(1)
+            }
+            Spacer(minLength: 6)
+            if t.hasAudio {
+                fileButton("waveform", "Écouter le WAV") { m.openFile(dir.appendingPathComponent("audio.wav")) }
+            }
+            fileButton("pianokeys", "Ouvrir le MIDI") { m.openFile(dir.appendingPathComponent("performance.mid")) }
+            fileButton("doc.richtext", "Ouvrir la partition") { m.openFile(dir.appendingPathComponent("partition.musicxml")) }
+            fileButton("music.quarternote.3", "Voir la grille d'accords") { m.openFile(dir.appendingPathComponent("accords.txt")) }
+            fileButton("folder", "Révéler dans le Finder") { m.revealTake(t.id) }
+            fileButton("trash", "Supprimer", tint: Tone.hot) { m.deleteTake(t.id) }
+        }
+        .padding(.horizontal, 10).padding(.vertical, 8)
+        .background(Tone.bg2, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func dateLabel(_ d: Date) -> String {
+        let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR")
+        f.dateFormat = "d MMM 'à' HH'h'mm"
+        return f.string(from: d)
+    }
+
+    private func fileButton(_ symbol: String, _ help: String,
+                            tint: Color = Tone.txt1, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.system(size: 11))
+                .frame(width: 26, height: 24)
+                .background(Tone.bg3, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .foregroundStyle(tint)
+        }
+        .buttonStyle(.plain).help(help)
+    }
+}
+
+// MARK: - Écran « Périphériques »
+
+struct DevicesScreen: View {
+    @ObservedObject var m: RigModel
+
+    var body: some View {
+        Scroll {
+            VStack(spacing: Metric.gap) {
+                HStack(alignment: .top, spacing: Metric.gap) {
+                    Panel(title: "Clavier MIDI") {
+                        VStack(alignment: .leading, spacing: 9) {
+                            if m.engine.midiSourceNames.isEmpty {
+                                row("exclamationmark.triangle", "Aucun clavier détecté", Tone.warn)
+                                Text("Branchez le piano en USB : il est reconnu automatiquement, quelle que soit la marque.")
+                                    .font(.system(size: 10.5)).foregroundStyle(Tone.txt2)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            } else {
+                                ForEach(m.engine.midiSourceNames, id: \.self) { n in
+                                    row("pianokeys", n, Tone.ok)
+                                }
+                                row("arrow.up.right", "Retour vers : \(m.engine.midiDestinationName)", Tone.txt1)
+                            }
+                            Divider().overlay(Tone.line)
+                            HStack {
+                                Toggle(isOn: Binding(get: { m.localSilenced },
+                                                     set: { _ in m.toggleLocal() })) {
+                                    Text("Couper le son interne du clavier")
+                                        .font(.system(size: 11)).foregroundStyle(Tone.txt1)
+                                }
+                                .toggleStyle(.switch).tint(Tone.accent)
+                            }
+                            Text("Message MIDI standard (CC 122), compris par tous les fabricants. Rétabli à la fermeture, et de toute façon oublié par l'instrument à l'extinction.")
+                                .font(.system(size: 10)).foregroundStyle(Tone.txt2)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Key(label: "Rechercher les appareils", symbol: "arrow.clockwise", wide: true) {
+                                m.engine.rescanMIDI(); m.refreshDevices()
+                            }
+                        }
+                    }
+
+                    Panel(title: "Sortie audio") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(m.engine.statusAudio)
+                                .font(.system(size: 11)).foregroundStyle(Tone.txt1)
+                            Divider().overlay(Tone.line)
+                            ForEach(m.audioDevices, id: \.self) { d in
+                                Button { m.chooseAudioDevice(d) } label: {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: m.engine.audioDeviceLabel == d
+                                              ? "largecircle.fill.circle" : "circle")
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(m.engine.audioDeviceLabel == d ? Tone.accent : Tone.txt2)
+                                        Text(d).font(.system(size: 11.5))
+                                            .foregroundStyle(m.engine.audioDeviceLabel == d ? Tone.txt0 : Tone.txt1)
+                                        Spacer(minLength: 0)
+                                    }
+                                    .padding(.vertical, 4)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            Text("Beaucoup de pianos numériques renvoient le son du Mac dans leurs haut-parleurs par le câble USB. Quand c'est le cas, cette sortie est choisie toute seule.")
+                                .font(.system(size: 10)).foregroundStyle(Tone.txt2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+
+                Panel(title: "Entrée micro") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 12) {
+                            Picker("", selection: $m.micDeviceID) {
+                                ForEach(m.micDevices, id: \.id) { d in
+                                    Text(d.name).tag(d.id)
+                                }
+                            }
+                            .labelsHidden().frame(width: 260).disabled(m.micOn)
+                            Key(label: m.micOn ? "Arrêter l'entrée" : "Activer l'entrée",
+                                symbol: m.micOn ? "mic.slash.fill" : "mic.fill",
+                                tint: m.micOn ? Tone.hot : Tone.txt0, filled: false) { m.toggleMic() }
+                            Toggle(isOn: Binding(get: { m.micMonitoring },
+                                                 set: { m.setMicMonitoring($0) })) {
+                                Text("Envoyer dans la sortie")
+                                    .font(.system(size: 11)).foregroundStyle(Tone.txt1)
+                            }
+                            .toggleStyle(.switch).tint(Tone.warn).disabled(!m.micOn)
+                            Spacer(minLength: 0)
+                            VStack(alignment: .trailing, spacing: 3) {
+                                Caption(text: "Entrée")
+                                LevelMeter(left: m.micPeakDB, right: m.micPeakDB,
+                                           holdL: m.micPeakDB, holdR: m.micPeakDB, height: 6)
+                                    .frame(width: 110)
+                            }
+                        }
+
+                        if m.micMonitoring {
+                            HStack(spacing: 7) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.system(size: 11)).foregroundStyle(Tone.warn)
+                                Text("Micro renvoyé dans les haut-parleurs : risque de larsen. Baissez le volume avant d'ouvrir.")
+                                    .font(.system(size: 10.5)).foregroundStyle(Tone.warn)
+                            }
+                            .padding(.horizontal, 9).padding(.vertical, 6)
+                            .background(Tone.warn.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
+                        }
+                        if let msg = m.micMessage {
+                            Text(msg).font(.system(size: 10.5)).foregroundStyle(Tone.hot)
+                        }
+
+                        HStack(spacing: 20) {
+                            Fader(title: "Gain du micro",
+                                  value: Binding(get: { m.micGain }, set: { m.setMicGain($0) }),
+                                  range: 0...3, format: { String(format: "%+.1f dB", 20 * log10(max(0.001, $0))) })
+                                .frame(width: 240)
+                            Fader(title: "Compresseur voix",
+                                  value: Binding(get: { m.micComp }, set: { m.setMicComp($0) }),
+                                  tint: Tone.ok)
+                                .frame(width: 240)
+                            Spacer(minLength: 0)
+                        }
+
+                        Divider().overlay(Tone.line)
+                        HStack {
+                            Caption(text: "Égaliseur de la voix")
+                            Spacer()
+                            Key(label: "Réglage de départ", symbol: "arrow.counterclockwise", height: 26) {
+                                m.resetMicEQ()
+                            }
+                        }
+                        Scroll(axis: .horizontal, flattenable: false) {
+                            HStack(spacing: 8) {
+                                ForEach(m.micBands.indices, id: \.self) { i in
+                                    EQBandCell(index: i, band: $m.micBands[i],
+                                               isSelected: m.micSelectedBand == i,
+                                               onSelect: { m.micSelectedBand = i },
+                                               onChange: { m.commitMicBands() })
+                                }
+                            }
+                        }
+                        .frame(height: 78)
+                        Text("L'égaliseur du micro est indépendant de celui du piano. Le réglage de départ coupe sous 95 Hz, dégage le bas-médium et relève la présence — un point de départ classique pour une voix.")
+                            .font(.system(size: 10)).foregroundStyle(Tone.txt2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    private func row(_ symbol: String, _ text: String, _ color: Color) -> some View {
+        HStack(spacing: 7) {
+            Image(systemName: symbol).font(.system(size: 11)).foregroundStyle(color)
+            Text(text).font(.system(size: 11.5)).foregroundStyle(Tone.txt1).lineLimit(1)
+            Spacer(minLength: 0)
+        }
+    }
+}

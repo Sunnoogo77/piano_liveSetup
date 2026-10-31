@@ -1,0 +1,49 @@
+name: Construction et tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: macOS — compiler et tester
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer FluidSynth
+        run: brew install fluid-synth
+
+      - name: Compiler
+        run: ./scripts/build.sh
+
+      - name: Tests sans matériel audio
+        # Les tests qui jouent du son ont besoin d'un périphérique de sortie :
+        # ils ne tournent pas sur un runner. Ceux-ci vérifient la reconnaissance
+        # d'accords et la validité des quatre formats d'export.
+        run: ./scripts/test.sh
+
+      - name: Vérifier la structure de la partition générée
+        run: |
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET, glob, sys
+          files = glob.glob('/var/folders/**/rectest/test.musicxml', recursive=True) \
+                + glob.glob('/tmp/**/rectest/test.musicxml', recursive=True)
+          if not files:
+              print("partition de test introuvable"); sys.exit(1)
+          root = ET.parse(files[0]).getroot()
+          divs = int(root.find(".//divisions").text)
+          bad = 0
+          for m in root.iter("measure"):
+              per = {}
+              for n in m.findall("note"):
+                  if n.find("chord") is not None: continue
+                  per[n.findtext("voice","1")] = per.get(n.findtext("voice","1"),0) + int(n.findtext("duration","0"))
+              for v,t in per.items():
+                  if t != 4*divs:
+                      print(f"mesure {m.get('number')} voix {v} : {t}/{4*divs}"); bad += 1
+          print("partition valide" if bad == 0 else f"{bad} mesure(s) mal remplie(s)")
+          sys.exit(1 if bad else 0)
+          PY

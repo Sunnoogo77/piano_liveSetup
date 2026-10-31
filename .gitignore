@@ -1,0 +1,18 @@
+# Produits de compilation
+build/
+*.o
+*.swiftmodule
+*.dSYM/
+
+# Banques de sons : téléchargées à l'installation, jamais versionnées (1,5 Go)
+Sounds/
+*.sf2
+*.sf3
+
+# Données de l'utilisateur
+Enregistrements/
+Config/setup.json
+
+# macOS
+.DS_Store
+._*
