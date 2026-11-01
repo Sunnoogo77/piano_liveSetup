@@ -529,6 +529,16 @@ function buildKeys(el) {
   const bW = wW * 0.58;
   const marks = [];
   el.innerHTML = '';
+  // Zone de la main gauche : un lit de touches assombri et un filet au point
+  // de partage, comme sur le Mac. Elle se voit même quand rien n'est tenu, et
+  // les notes gardent toutes la même couleur.
+  const zone = document.createElement('div');
+  zone.className = 'zone';
+  zone.style.display = 'none';
+  el.appendChild(zone);
+  el.zone = zone;
+  el.whiteWidth = wW;
+  el.whites = whites;
   let wi = 0;
   for (let n = 21; n <= 108; n++) {
     const pc = ((n % 12) + 12) % 12;
@@ -569,9 +579,16 @@ function paintKeys(el, notes) {
   el.dataset.sig = sig;
   for (const d of el.children) {
     if (!d.dataset.n) continue;
-    const n = +d.dataset.n, on = set.has(n);
-    d.classList.toggle('hit', on);
-    d.classList.toggle('lo', on && split > 0 && n < split);
+    d.classList.toggle('hit', set.has(+d.dataset.n));
+  }
+  if (el.zone) {
+    const i = el.whites.findIndex(n => n >= split);
+    if (split > 0 && i > 0) {
+      el.zone.style.display = '';
+      el.zone.style.width = (i * el.whiteWidth) + '%';
+    } else {
+      el.zone.style.display = 'none';
+    }
   }
 }
 
@@ -759,7 +776,10 @@ function placeHandles(w, h) {
   }
   bands.forEach((b, i) => {
     const d = nodes[i];
-    d.textContent = b.label.slice(0, 3);
+    // Le numéro de la bande, comme sur le Mac. Un nom coupé au troisième
+    // caractère dans un rond de trente pixels ne se lit pas, et le nom entier
+    // est juste en dessous, dans la tranche.
+    d.textContent = String(i + 1);
     // On garde la poignée entièrement dans le cadre : au bord, elle serait
     // coupée en deux et difficile à attraper.
     d.style.left = Math.max(16, Math.min(w - 16, xForFreq(b.freq, w))) + 'px';
@@ -821,7 +841,11 @@ function drawBands() {
     bar.innerHTML = '';
     bands.forEach((_, i) => {
       const b = document.createElement('button');
-      b.innerHTML = '<div class="l"></div><div class="g num"></div><div class="f num"></div>';
+      // Le numéro sert sur un écran étroit, où sept noms entiers ne tiennent
+      // pas ; le nom complet est alors juste en dessous, dans le détail de la
+      // bande choisie. Mieux qu'un « Présenc » coupé au bord.
+      b.innerHTML = '<div class="i num">' + (i + 1) + '</div><div class="l"></div>'
+                  + '<div class="g num"></div><div class="f num"></div>';
       b.onclick = () => { selBand = i; drawBands(); paintEQ(); };
       bar.appendChild(b);
     });

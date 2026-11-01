@@ -761,33 +761,35 @@ final class RigModel: ObservableObject {
 struct BootView: View {
     @ObservedObject var m: RigModel
     var body: some View {
-        VStack(spacing: 22) {
+        VStack(spacing: 24) {
             Spacer()
             Image(systemName: "pianokeys")
-                .font(.system(size: 44, weight: .light))
+                .font(.system(size: 40, weight: .regular))
                 .foregroundStyle(Tone.accent)
             VStack(spacing: 6) {
                 Text("Piano Live Setup")
-                    .font(.system(size: 22, weight: .semibold, design: .rounded))
+                    .font(.system(size: 22, weight: .medium))
                     .foregroundStyle(Tone.txt0)
-                Text("YDP-145 · scène")
-                    .font(.system(size: 11)).tracking(2)
+                // Aucun nom de modèle en dur ici : l'outil marche avec le
+                // clavier qu'on lui branche, quel qu'il soit.
+                Text("Votre clavier MIDI, prêt à jouer")
+                    .font(.system(size: 12))
                     .foregroundStyle(Tone.txt2)
             }
             if let e = m.fatalError {
                 Text(e).font(.system(size: 12)).foregroundStyle(Tone.hot)
                     .multilineTextAlignment(.center).padding(.horizontal, 40)
             } else if let hint = m.bootHint {
-                VStack(spacing: 10) {
+                VStack(spacing: 12) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 16)).foregroundStyle(Tone.warn)
                     Text(hint).font(.system(size: 12)).foregroundStyle(Tone.warn)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.horizontal, 46)
+                .padding(.horizontal, 48)
             } else {
-                VStack(spacing: 9) {
+                VStack(spacing: 8) {
                     GeometryReader { g in
                         ZStack(alignment: .leading) {
                             Capsule().fill(Tone.bg2)
@@ -798,13 +800,13 @@ struct BootView: View {
                     }
                     .frame(width: 280, height: 4)
                     Text(m.loadingLabel)
-                        .font(.system(size: 10.5)).foregroundStyle(Tone.txt2)
+                        .font(.system(size: 12)).foregroundStyle(Tone.txt2)
                         .frame(height: 14)
                 }
             }
             Spacer()
             Text("1,5 Go d'échantillons · chargement unique au lancement")
-                .font(.system(size: 9.5)).foregroundStyle(Tone.txt2.opacity(0.7))
+                .font(.system(size: 11)).foregroundStyle(Tone.txt2.opacity(0.7))
                 .padding(.bottom, 20)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

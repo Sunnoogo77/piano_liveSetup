@@ -20,7 +20,7 @@ struct NumberDrag: View {
         VStack(spacing: 2) {
             Caption(text: title, color: enabled ? Tone.txt2 : Tone.txt2.opacity(0.45))
             Text(format(value))
-                .font(.value(12, .semibold))
+                .font(.value(12, .medium))
                 .foregroundStyle(enabled ? (hover ? tint : Tone.txt0) : Tone.txt2.opacity(0.5))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 4)
@@ -65,9 +65,9 @@ struct EQBandCell: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 5) {
+            HStack(spacing: 4) {
                 Text("\(index + 1)")
-                    .font(.system(size: 9, weight: .heavy))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(isSelected ? Tone.bg0 : Tone.txt2)
                     .frame(width: 15, height: 15)
                     .background(isSelected ? Tone.accent : Tone.bg3, in: Circle())
@@ -77,14 +77,14 @@ struct EQBandCell: View {
                     band.enabled.toggle(); onChange()
                 } label: {
                     Image(systemName: "power")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(band.enabled ? Tone.ok : Tone.txt2.opacity(0.45))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(band.enabled ? Tone.accent : Tone.txt2.opacity(0.45))
                 }
                 .buttonStyle(.plain)
                 .help(band.enabled ? "Désactiver cette bande" : "Activer cette bande")
             }
 
-            HStack(spacing: 5) {
+            HStack(spacing: 4) {
                 NumberDrag(title: "Fréq", value: $band.freq, range: 20...20000,
                            sensitivity: 2, logarithmic: true,
                            format: { $0 >= 1000 ? String(format: "%.1fk", $0 / 1000) : String(format: "%.0f", $0) },
@@ -99,7 +99,7 @@ struct EQBandCell: View {
                            enabled: band.enabled, onCommit: onChange)
             }
         }
-        .padding(.horizontal, 8).padding(.vertical, 9)
+        .padding(.horizontal, 8).padding(.vertical, 8)
         .frame(minWidth: 132, idealWidth: 140, maxWidth: 240)
         .background(isSelected ? Tone.bg2 : Tone.bg1,
                     in: RoundedRectangle(cornerRadius: Metric.radius, style: .continuous))
@@ -119,30 +119,32 @@ struct PresetRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 9) {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Tone.category(preset.category))
-                    .frame(width: 3, height: 26)
-                    .opacity(isActive ? 1 : 0.45)
-                VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 8) {
+                // Le son choisi porte un trait d'accent. Les autres n'ont pas
+                // de couleur : une liste de quarante sons où chaque ligne est
+                // teintée ne se lit plus, elle se regarde.
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(isActive ? Tone.accent : .clear)
+                    .frame(width: 2, height: 24)
+                VStack(alignment: .leading, spacing: 2) {
                     Text(preset.name)
-                        .font(.system(size: 12.5, weight: isActive ? .semibold : .medium))
+                        .font(.system(size: 13, weight: isActive ? .medium : .regular))
                         .foregroundStyle(isActive ? Tone.txt0 : Tone.txt1)
                         .lineLimit(1)
                     Text(preset.subtitle)
-                        .font(.system(size: 10))
+                        .font(.system(size: 11))
                         .foregroundStyle(Tone.txt2)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 4)
                 if preset.hasSecondLayer {
                     Image(systemName: preset.category == .split ? "rectangle.split.2x1" : "square.stack.3d.up")
-                        .font(.system(size: 9))
+                        .font(.system(size: 11, weight: .regular))
                         .foregroundStyle(Tone.txt2)
                 }
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 6)
+            .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(isActive ? Tone.accentDim : (hover ? Tone.bg2 : .clear),
                         in: RoundedRectangle(cornerRadius: 8, style: .continuous))

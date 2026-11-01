@@ -24,12 +24,13 @@ struct KeyboardView: View {
                 var xFor: [Int: CGFloat] = [:]
                 for (i, n) in whites.enumerated() { xFor[n] = CGFloat(i) * ww }
 
+
                 // touches blanches
                 for n in whites {
                     let x = xFor[n]!
                     let rect = CGRect(x: x + 0.5, y: 0, width: ww - 1, height: wh)
                     let on = active.contains(n)
-                    let tint = n < splitAt ? Tone.blue : Tone.accent
+                    let tint = Tone.accent
                     ctx.fill(Path(roundedRect: rect, cornerRadius: 2),
                              with: .color(on ? tint : Color(white: 0.90)))
                     if on {
@@ -40,7 +41,7 @@ struct KeyboardView: View {
                     }
                     if showNames, n % 12 == 0, ww > 11 {
                         ctx.draw(Text("Do\(n / 12 - 1)")
-                                    .font(.system(size: min(9, ww * 0.42), weight: .semibold))
+                                    .font(.system(size: min(9, ww * 0.42), weight: .medium))
                                     .foregroundStyle(on ? Color.white.opacity(0.9) : Color(white: 0.45)),
                                  at: CGPoint(x: rect.midX, y: wh - 9), anchor: .center)
                     }
@@ -51,11 +52,23 @@ struct KeyboardView: View {
                     guard let prev = xFor[n - 1] else { continue }
                     let rect = CGRect(x: prev + ww - bw / 2, y: 0, width: bw, height: bh)
                     let on = active.contains(n)
-                    let tint = n < splitAt ? Tone.blue : Tone.accent
+                    let tint = Tone.accent
                     ctx.fill(Path(roundedRect: rect, cornerRadius: 2),
                              with: .color(on ? tint.opacity(0.92) : Color(white: 0.11)))
                     ctx.stroke(Path(roundedRect: rect, cornerRadius: 2),
                                with: .color(Color.black.opacity(0.65)), lineWidth: 0.8)
+                }
+
+                // Zone de la main gauche, posée par-dessus : un voile sombre et
+                // un filet au point de partage. Les touches blanches sont
+                // opaques, donc le voile doit venir après elles, sinon il
+                // disparaît. Les notes tenues gardent toutes la même couleur.
+                if splitAt > lowest,
+                   let edge = xFor[whites.first(where: { $0 >= splitAt }) ?? highest] {
+                    ctx.fill(Path(CGRect(x: 0, y: 0, width: edge, height: wh)),
+                             with: .color(Color.black.opacity(0.26)))
+                    ctx.fill(Path(CGRect(x: edge - 1, y: 0, width: 2, height: wh)),
+                             with: .color(Tone.accent))
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
@@ -73,34 +86,30 @@ struct KeyboardView: View {
 /// fonctionne : on peut visiter les écrans, régler l'égaliseur, écouter ses
 /// prises. Seul le jeu attend l'instrument.
 struct WaitingForKeyboard: View {
-    @State private var pulse = false
-
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 16) {
+            // Pas de halo qui bat : rien n'est en train de se passer, et une
+            // animation sans fin dans un coin de l'écran use l'œil pendant un
+            // concert.
             ZStack {
-                Circle().fill(Tone.warn.opacity(0.18)).frame(width: 40, height: 40)
-                    .scaleEffect(pulse ? 1.25 : 1).opacity(pulse ? 0 : 1)
-                Circle().fill(Tone.warn.opacity(0.16)).frame(width: 40, height: 40)
+                Circle().fill(Tone.warn.opacity(0.14)).frame(width: 40, height: 40)
                 Image(systemName: "pianokeys")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: 16, weight: .regular))
                     .foregroundStyle(Tone.warn)
             }
-            .frame(width: 44, height: 44)
-            .onAppear {
-                withAnimation(.easeOut(duration: 1.6).repeatForever(autoreverses: false)) { pulse = true }
-            }
+            .frame(width: 40, height: 40)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text("En attente d'un clavier")
-                    .font(.system(size: 15, weight: .semibold)).foregroundStyle(Tone.txt0)
+                    .font(.system(size: 15, weight: .medium)).foregroundStyle(Tone.txt0)
                 Text("Branchez le piano en USB et allumez-le. Il sera pris en main tout seul : "
                      + "son interne coupé, et le son envoyé dans ses haut-parleurs s'il sait les recevoir.")
-                    .font(.system(size: 11.5)).foregroundStyle(Tone.txt1)
+                    .font(.system(size: 12)).foregroundStyle(Tone.txt1)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }
-        .padding(14)
+        .padding(16)
         .background(Tone.warn.opacity(0.07),
                     in: RoundedRectangle(cornerRadius: Metric.radiusL, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Metric.radiusL, style: .continuous)
@@ -118,7 +127,7 @@ struct ChordBadge: View {
         VStack(alignment: .leading, spacing: compact ? 2 : 8) {
             Caption(text: "Accord détecté")
             Text(chord.symbol)
-                .font(.system(size: compact ? 40 : 86, weight: .semibold, design: .rounded))
+                .font(.system(size: compact ? 40 : 86, weight: .medium))
                 .foregroundStyle(chord.symbol == "—" ? Tone.txt2 : Tone.accent)
                 .contentTransition(.numericText())
                 .animation(.snappy(duration: 0.14), value: chord.symbol)
@@ -135,11 +144,11 @@ struct ChordBadge: View {
                             Text(n).font(.system(size: compact ? 11 : 13, weight: .medium))
                                 .foregroundStyle(Tone.txt0)
                             if i < chord.degrees.count {
-                                Text(chord.degrees[i]).font(.system(size: 9))
+                                Text(chord.degrees[i]).font(.system(size: 11))
                                     .foregroundStyle(Tone.txt2)
                             }
                         }
-                        .padding(.horizontal, 7).padding(.vertical, 3)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
                         .background(Tone.bg2, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                     }
                 }
@@ -156,28 +165,32 @@ struct PlayScreen: View {
     var body: some View {
         GeometryReader { geo in
             let wide = geo.size.width >= 980
+            // Fenêtre basse : l'accord passe en petit et le clavier se tasse,
+            // plutôt que de pousser les niveaux hors de l'écran. Un réglage
+            // qu'on ne voit plus ne sert à rien.
+            let tight = geo.size.height < 520
             VStack(spacing: Metric.gap) {
                 if !m.hasKeyboard { WaitingForKeyboard() }
                 HStack(alignment: .top, spacing: Metric.gap) {
                     Panel {
-                        ChordBadge(chord: m.chord)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        ChordBadge(chord: m.chord, compact: tight)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                     }
+                    .frame(maxHeight: .infinity)
                     if wide {
                         Panel(title: "Hauteur") {
-                            VStack(spacing: 10) {
+                            VStack(spacing: 12) {
                                 Text(pitchLabel)
-                                    .font(.system(size: 54, weight: .semibold, design: .rounded))
-                                    .monospacedDigit()
+                                    .font(.display(54))
                                     .foregroundStyle(m.transpose == 0 && m.octave == 0 ? Tone.txt0 : Tone.accent)
                                     .frame(maxWidth: .infinity)
-                                HStack(spacing: 7) {
+                                HStack(spacing: 8) {
                                     Key(label: "−1", wide: true, height: 40) { m.nudgeTranspose(-1) }
                                     Key(label: "0", tint: Tone.accent,
                                         filled: m.transpose != 0 || m.octave != 0, wide: true, height: 40) { m.resetPitch() }
                                     Key(label: "+1", wide: true, height: 40) { m.nudgeTranspose(1) }
                                 }
-                                HStack(spacing: 7) {
+                                HStack(spacing: 8) {
                                     Key(label: "Octave −", symbol: "chevron.down", wide: true) { m.nudgeOctave(-1) }
                                     Key(label: "Octave +", symbol: "chevron.up", wide: true) { m.nudgeOctave(1) }
                                 }
@@ -188,7 +201,8 @@ struct PlayScreen: View {
                 }
 
                 KeyboardView(active: Set(m.sounding), splitAt: splitPoint)
-                    .frame(height: 92)
+                    .frame(minHeight: tight ? 72 : 100, maxHeight: tight ? 96 : 152)
+                    .layoutPriority(1)
 
                 HStack(alignment: .top, spacing: Metric.gap) {
                     Panel(title: "Niveaux") {
@@ -197,25 +211,35 @@ struct PlayScreen: View {
                                   value: Binding(get: { m.master }, set: { m.setMaster($0) }))
                             Fader(title: m.preset.category == .split ? "Niveau main gauche" : "Niveau de la nappe",
                                   value: Binding(get: { m.layerMix }, set: { m.setLayer($0) }),
-                                  tint: Tone.category(m.preset.category),
                                   enabled: m.preset.hasSecondLayer)
                         }
                     }
                     Panel(title: "Scène") {
-                        HStack(spacing: 8) {
-                            Key(label: "Arrêt des notes", symbol: "hand.raised.fill",
-                                tint: Tone.hot, wide: true, height: 40) { m.panic() }
-                            Key(label: m.isRecording ? "Arrêter" : "Enregistrer",
-                                symbol: m.isRecording ? "stop.fill" : "record.circle",
-                                tint: m.isRecording ? Tone.hot : Tone.txt0,
-                                filled: m.isRecording, wide: true, height: 40) { m.toggleRecording() }
+                        let stage = ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 8) { sceneKeys }
+                            VStack(spacing: 8) { sceneKeys }
                         }
+                        stage
                     }
-                    .frame(width: wide ? 320 : 260)
+                    .frame(width: wide ? 320 : 260, alignment: .top)
+                    .frame(maxHeight: .infinity, alignment: .top)
                 }
-                Spacer(minLength: 0)
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
             }
         }
+    }
+
+    // Les deux commandes de scène, écrites une fois et posées soit côte à
+    // côte, soit l'une sous l'autre selon la place.
+    @ViewBuilder
+    private var sceneKeys: some View {
+        Key(label: "Arrêt des notes", symbol: "hand.raised.fill",
+            tint: Tone.hot, wide: true, height: 40) { m.panic() }
+        Key(label: m.isRecording ? "Arrêter" : "Enregistrer",
+            symbol: m.isRecording ? "stop.fill" : "record.circle",
+            tint: m.isRecording ? Tone.hot : Tone.txt0,
+            filled: m.isRecording, wide: true, height: 40) { m.toggleRecording() }
     }
 
     private var splitPoint: Int {
@@ -243,17 +267,17 @@ struct ChordScreen: View {
                     Spacer(minLength: 0)
                     VStack(alignment: .trailing, spacing: 6) {
                         Caption(text: "Fiabilité")
-                        Text("\(Int(m.chord.confidence * 100)) %")
-                            .font(.system(size: 26, weight: .semibold, design: .rounded))
+                        Text("\(Int((m.chord.confidence * 100).rounded())) %")
+                            .font(.system(size: 28, weight: .medium))
                             .foregroundStyle(m.chord.confidence > 0.8 ? Tone.ok :
                                              (m.chord.confidence > 0.5 ? Tone.warn : Tone.txt2))
                         if m.chord.isInversion {
-                            Text("renversement").font(.system(size: 10))
+                            Text("renversement").font(.system(size: 11))
                                 .foregroundStyle(Tone.txt2)
                         }
                         if Int(m.transpose) + Int(m.octave) * 12 != 0 {
                             Text("hauteur transposée")
-                                .font(.system(size: 10)).foregroundStyle(Tone.warn)
+                                .font(.system(size: 11)).foregroundStyle(Tone.warn)
                         }
                     }
                 }
@@ -266,7 +290,7 @@ struct ChordScreen: View {
                 if m.chordHistory.isEmpty {
                     Text("Jouez trois notes ou plus : les accords tenus s'inscrivent ici.")
                         .font(.system(size: 12)).foregroundStyle(Tone.txt2)
-                        .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 18)
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 20)
                 } else {
                     Scroll {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 8)],
@@ -274,9 +298,9 @@ struct ChordScreen: View {
                             ForEach(Array(m.chordHistory.enumerated()), id: \.offset) { i, c in
                                 VStack(spacing: 2) {
                                     Text(c.symbol)
-                                        .font(.system(size: 17, weight: .semibold, design: .rounded))
+                                        .font(.system(size: 18, weight: .medium))
                                         .foregroundStyle(i == 0 ? Tone.accent : Tone.txt0)
-                                    Text(c.quality).font(.system(size: 9))
+                                    Text(c.quality).font(.system(size: 11))
                                         .foregroundStyle(Tone.txt2).lineLimit(1)
                                 }
                                 .frame(maxWidth: .infinity).padding(.vertical, 8)
@@ -301,12 +325,13 @@ struct KeyboardScreen: View {
     var body: some View {
         VStack(spacing: Metric.gap) {
             Panel {
-                VStack(spacing: 14) {
+                VStack(spacing: 16) {
                     KeyboardView(active: Set(m.sounding), splitAt: splitPoint)
-                        .frame(minHeight: 150, maxHeight: 260)
-                    HStack(spacing: 18) {
-                        legend(Tone.blue, m.preset.category == .split ? "Main gauche" : "Sous Do4")
-                        legend(Tone.accent, m.preset.category == .split ? "Main droite" : "Do4 et au-dessus")
+                        .frame(minHeight: 150, maxHeight: 360)
+                    HStack(spacing: 20) {
+                        Caption(text: m.preset.category == .split
+                                ? "Fond assombri : main gauche, jusqu'au point de partage"
+                                : "Fond assombri : sous Do4")
                         Spacer()
                         Text("\(m.sounding.count) note\(m.sounding.count == 1 ? "" : "s") tenue\(m.sounding.count == 1 ? "" : "s")")
                             .font(.value(11)).foregroundStyle(Tone.txt1)
@@ -334,11 +359,5 @@ struct KeyboardScreen: View {
             return Int(m.preset.layers[1].loKey)
         }
         return 60
-    }
-    private func legend(_ c: Color, _ t: String) -> some View {
-        HStack(spacing: 6) {
-            RoundedRectangle(cornerRadius: 2).fill(c).frame(width: 14, height: 8)
-            Text(t).font(.system(size: 10.5)).foregroundStyle(Tone.txt2)
-        }
     }
 }

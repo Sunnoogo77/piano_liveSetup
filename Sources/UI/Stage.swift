@@ -9,7 +9,7 @@ struct SidebarView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Recherche
-            HStack(spacing: 7) {
+            HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 11, weight: .medium)).foregroundStyle(Tone.txt2)
                 TextField("Rechercher un son", text: $m.search)
@@ -23,19 +23,19 @@ struct SidebarView: View {
                     }.buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 10).padding(.vertical, 7)
+            .padding(.horizontal, 12).padding(.vertical, 8)
             .background(Tone.bg2, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .padding(.horizontal, 10).padding(.top, 10).padding(.bottom, 8)
+            .padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 8)
 
             // Familles
             Scroll(axis: .horizontal) {
                 HStack(spacing: 6) {
-                    chip(nil, "Tout", Tone.txt1)
+                    chip(nil, "Tout")
                     ForEach(Category.allCases, id: \.self) { c in
-                        chip(c, c.short, Tone.category(c))
+                        chip(c, c.short)
                     }
                 }
-                .padding(.horizontal, 10)
+                .padding(.horizontal, 12)
             }
             .padding(.bottom, 8)
 
@@ -52,19 +52,20 @@ struct SidebarView: View {
                                 }
                             }
                         } header: {
-                            HStack(spacing: 6) {
+                            HStack(spacing: 8) {
                                 Image(systemName: cat.symbol)
-                                    .font(.system(size: 9, weight: .semibold))
-                                Caption(text: cat.rawValue, color: Tone.category(cat))
+                                    .font(.system(size: 11, weight: .regular))
+                                    .frame(width: 14)
+                                Caption(text: cat.rawValue)
                                 Spacer()
                             }
-                            .foregroundStyle(Tone.category(cat))
-                            .padding(.horizontal, 10).padding(.top, 10).padding(.bottom, 4)
+                            .foregroundStyle(Tone.txt2)
+                            .padding(.horizontal, 12).padding(.top, 20).padding(.bottom, 8)
                             .background(Tone.bg1)
                         }
                     }
                 }
-                .padding(.horizontal, 6).padding(.bottom, 10)
+                .padding(.horizontal, 6).padding(.bottom, 12)
             }
         }
         .background(Tone.bg1)
@@ -78,16 +79,17 @@ struct SidebarView: View {
         m.filtered.filter { $0.element.category == c }
     }
 
-    private func chip(_ c: Category?, _ label: String, _ color: Color) -> some View {
+    private func chip(_ c: Category?, _ label: String) -> some View {
         let on = m.categoryFilter == c
         return Button { m.categoryFilter = on ? nil : c } label: {
             Text(label)
-                .font(.system(size: 10.5, weight: .semibold))
-                .padding(.horizontal, 9).padding(.vertical, 4)
-                .background(on ? color.opacity(0.22) : Tone.bg2,
-                            in: Capsule())
-                .overlay(Capsule().strokeBorder(on ? color.opacity(0.6) : .clear, lineWidth: 1))
-                .foregroundStyle(on ? color : Tone.txt1)
+                .font(.system(size: 12, weight: .regular))
+                .padding(.horizontal, 12).frame(height: 24)
+                .background(on ? Tone.accentDim : Tone.bg2,
+                            in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(on ? Tone.accent.opacity(0.55) : .clear, lineWidth: 1))
+                .foregroundStyle(on ? Tone.accent : Tone.txt1)
         }
         .buttonStyle(.plain)
     }
@@ -101,7 +103,7 @@ struct StageView: View {
     var body: some View {
         GeometryReader { geo in
             VStack(spacing: Metric.gap) {
-                header
+                header(stageWidth: geo.size.width)
                 tabBar
                 content(width: geo.size.width)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -120,24 +122,24 @@ struct StageView: View {
             ForEach(Tab.allCases) { t in
                 Button { m.tab = t } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: t.symbol).font(.system(size: 11, weight: .semibold))
-                        Text(t.rawValue).font(.system(size: 12, weight: .semibold))
+                        Image(systemName: t.symbol).font(.system(size: 11, weight: .medium))
+                        Text(t.rawValue).font(.system(size: 12, weight: .medium))
                         if t == .record && m.isRecording {
                             Circle().fill(Tone.hot).frame(width: 6, height: 6)
                         }
                     }
-                    .padding(.horizontal, 12).frame(height: 32)
-                    .background(m.tab == t ? Tone.accent.opacity(0.16) : Color.clear,
+                    .padding(.horizontal, 12).frame(height: Metric.row)
+                    .background(m.tab == t ? Tone.bg2 : Color.clear,
                                 in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(m.tab == t ? Tone.accent.opacity(0.5) : .clear, lineWidth: 1))
+                        .strokeBorder(m.tab == t ? Tone.line2 : .clear, lineWidth: 1))
                     .foregroundStyle(m.tab == t ? Tone.accent : Tone.txt1)
                 }
                 .buttonStyle(.plain)
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 6).padding(.vertical, 5)
+        .padding(.horizontal, 6).padding(.vertical, 4)
         .background(Tone.bg1, in: RoundedRectangle(cornerRadius: Metric.radius, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Metric.radius, style: .continuous)
             .strokeBorder(Tone.line, lineWidth: 1))
@@ -192,21 +194,27 @@ struct StageView: View {
 
     // MARK: Bandeau supérieur
 
-    private var header: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 3) {
+    /// Vrai quand l'écran de jeu montre son propre panneau « Hauteur » —
+    /// même seuil que `PlayScreen`, à la marge du cadre près.
+    private func playShowsPitch(_ stageWidth: CGFloat) -> Bool {
+        m.tab == .play && stageWidth - 2 * Metric.gap >= 980
+    }
+
+    private func header(stageWidth: CGFloat) -> some View {
+        HStack(alignment: .center, spacing: 24) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
                     Image(systemName: m.preset.category.symbol)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Tone.category(m.preset.category))
-                    Caption(text: m.preset.category.rawValue, color: Tone.category(m.preset.category))
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(Tone.txt2)
+                    Caption(text: m.preset.category.rawValue)
                 }
                 Text(m.preset.name)
-                    .font(.system(size: 30, weight: .semibold, design: .rounded))
+                    .font(.system(size: 28, weight: .medium))
                     .foregroundStyle(Tone.txt0)
                     .lineLimit(1).minimumScaleFactor(0.6)
                 Text(m.preset.subtitle)
-                    .font(.system(size: 11.5))
+                    .font(.system(size: 12))
                     .foregroundStyle(Tone.txt1)
                     .lineLimit(1)
             }
@@ -216,7 +224,7 @@ struct StageView: View {
                 VStack(spacing: 1) {
                     Caption(text: "Accord")
                     Text(m.chord.symbol)
-                        .font(.system(size: 22, weight: .semibold, design: .rounded))
+                        .font(.system(size: 22, weight: .medium))
                         .foregroundStyle(Tone.accent)
                         .contentTransition(.numericText())
                         .animation(.snappy(duration: 0.14), value: m.chord.symbol)
@@ -224,44 +232,49 @@ struct StageView: View {
                 .frame(minWidth: 70)
             }
 
-            // Transposition, en grand : c'est l'information qu'on cherche du regard.
-            VStack(alignment: .trailing, spacing: 2) {
+            // Transposition, en grand : c'est l'information qu'on cherche du
+            // regard. L'onglet Jeu a déjà ses commandes de hauteur avec le même
+            // chiffre en grand, alors le bandeau se tait : une valeur affichée
+            // deux fois sur un même écran, on finit par ne plus lire ni l'une
+            // ni l'autre.
+            if !playShowsPitch(stageWidth) {
+            VStack(alignment: .trailing, spacing: 4) {
                 Caption(text: "Transposition")
                 Text(pitchLabel)
-                    .font(.system(size: 30, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
+                    .font(.display(28))
                     .foregroundStyle(m.transpose == 0 && m.octave == 0 ? Tone.txt0 : Tone.accent)
                     .contentTransition(.numericText())
                     .animation(.snappy(duration: 0.15), value: m.transpose)
                     .animation(.snappy(duration: 0.15), value: m.octave)
             }
+            }
 
-            VStack(alignment: .trailing, spacing: 6) {
-                HStack(spacing: 6) {
+            VStack(alignment: .trailing, spacing: 8) {
+                HStack(spacing: 8) {
                     if m.isRecording {
-                        Circle().fill(Tone.hot).frame(width: 7, height: 7)
-                        Caption(text: "REC", color: Tone.hot)
+                        Circle().fill(Tone.hot).frame(width: 6, height: 6)
+                        Caption(text: "Enregistre", color: Tone.hot)
                     }
                     Circle().fill(!m.hasKeyboard ? Tone.warn
-                                  : (m.midiLive ? Tone.ok : Tone.txt2.opacity(0.3)))
+                                  : (m.midiLive ? Tone.ok : Tone.txt2.opacity(0.4)))
                         .frame(width: 6, height: 6)
-                    Caption(text: m.hasKeyboard ? "MIDI" : "AUCUN CLAVIER",
-                            color: !m.hasKeyboard ? Tone.warn : (m.midiLive ? Tone.ok : Tone.txt2))
-                    Text("\(m.held)")
-                        .font(.value(10)).foregroundStyle(Tone.txt2)
+                    Caption(text: m.hasKeyboard ? "Clavier" : "Aucun clavier",
+                            color: m.hasKeyboard ? Tone.txt2 : Tone.warn)
+                    Text(m.held == 1 ? "1 note" : "\(m.held) notes")
+                        .font(.value(11)).foregroundStyle(Tone.txt2)
                 }
                 LevelMeter(left: m.peakDBL, right: m.peakDBR, holdL: m.holdL, holdR: m.holdR)
-                    .frame(width: 150)
+                    .frame(width: 152)
                 HStack(spacing: 0) {
                     ForEach([-48, -30, -18, -9, -3, 0], id: \.self) { t in
-                        Text("\(t)").font(.system(size: 8))
-                            .foregroundStyle(Tone.txt2.opacity(0.7))
+                        Text("\(t)").font(.value(10))
+                            .foregroundStyle(Tone.txt2)
                             .frame(maxWidth: .infinity, alignment: t == -48 ? .leading : (t == 0 ? .trailing : .center))
                     }
                 }
-                .frame(width: 150)
+                .frame(width: 152)
                 Text(String(format: "crête %+.1f dB", max(m.holdL, m.holdR)))
-                    .font(.value(10))
+                    .font(.value(11))
                     .foregroundStyle(max(m.holdL, m.holdR) > -1.5 ? Tone.hot : Tone.txt2)
             }
         }
@@ -286,14 +299,14 @@ struct StageView: View {
         } else {
             // Fenêtre étroite : un sélecteur de bande et une seule tranche, large.
             // Mieux qu'un défilement horizontal sur une commande qu'on règle à l'oreille.
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
                     Caption(text: "Bande")
                     HStack(spacing: 4) {
                         ForEach(m.bands.indices, id: \.self) { i in
                             Button { m.selectedBand = i } label: {
                                 Text("\(i + 1)")
-                                    .font(.system(size: 10, weight: .heavy))
+                                    .font(.system(size: 11, weight: .medium))
                                     .frame(width: 22, height: 22)
                                     .background(m.selectedBand == i ? Tone.accent :
                                                 (m.bands[i].enabled ? Tone.bg2 : Tone.bg1),
@@ -330,7 +343,7 @@ struct StageView: View {
                     VStack(spacing: 4) {
                         Image(systemName: "arrow.counterclockwise")
                             .font(.system(size: 12, weight: .medium))
-                        Text("Neutre").font(.system(size: 9.5, weight: .semibold))
+                        Text("Neutre").font(.system(size: 11, weight: .medium))
                     }
                     .frame(width: 58, height: 72)
                     .background(Tone.bg1, in: RoundedRectangle(cornerRadius: Metric.radius, style: .continuous))
@@ -347,14 +360,14 @@ struct StageView: View {
 
     private var pitchPanel: some View {
         Panel(title: "Hauteur") {
-            VStack(spacing: 10) {
-                HStack(spacing: 7) {
+            VStack(spacing: 12) {
+                HStack(spacing: 8) {
                     Key(label: "−1", tint: Tone.txt0, wide: true, height: 38) { m.nudgeTranspose(-1) }
                     Key(label: "0", tint: Tone.accent,
                         filled: m.transpose != 0 || m.octave != 0, wide: true, height: 38) { m.resetPitch() }
                     Key(label: "+1", tint: Tone.txt0, wide: true, height: 38) { m.nudgeTranspose(1) }
                 }
-                HStack(spacing: 7) {
+                HStack(spacing: 8) {
                     Key(label: "Octave −", symbol: "chevron.down", wide: true) { m.nudgeOctave(-1) }
                     Key(label: "Octave +", symbol: "chevron.up", wide: true) { m.nudgeOctave(1) }
                 }
@@ -372,9 +385,8 @@ struct StageView: View {
                 Fader(title: "Volume général", value: Binding(get: { m.master }, set: { m.setMaster($0) }))
                 Fader(title: m.preset.category == .split ? "Niveau main gauche" : "Niveau de la nappe",
                       value: Binding(get: { m.layerMix }, set: { m.setLayer($0) }),
-                      tint: Tone.category(m.preset.category),
                       enabled: m.preset.hasSecondLayer)
-                HStack(spacing: 7) {
+                HStack(spacing: 8) {
                     Key(label: "Arrêt des notes", symbol: "hand.raised.fill",
                         tint: Tone.hot, wide: true, height: 36) { m.panic() }
                 }
@@ -385,17 +397,14 @@ struct StageView: View {
     private var effectsPanel: some View {
         Panel(title: "Effets") {
             VStack(spacing: 12) {
-                Fader(title: "Saturation", value: Binding(get: { m.drive }, set: { m.setDrive($0) }),
-                      tint: Tone.warn)
+                Fader(title: "Saturation", value: Binding(get: { m.drive }, set: { m.setDrive($0) }))
                 Fader(title: "Trémolo — profondeur",
-                      value: Binding(get: { m.tremDepth }, set: { m.setTrem(rate: m.tremRate > 0.1 ? m.tremRate : 5.2, depth: $0) }),
-                      tint: Tone.blue)
+                      value: Binding(get: { m.tremDepth }, set: { m.setTrem(rate: m.tremRate > 0.1 ? m.tremRate : 5.2, depth: $0) }))
                 Fader(title: "Trémolo — vitesse",
                       value: Binding(get: { m.tremRate }, set: { m.setTrem(rate: $0, depth: m.tremDepth) }),
                       range: 0...12, format: { String(format: "%.1f Hz", $0) },
-                      tint: Tone.blue, enabled: m.tremDepth > 0.005)
-                Fader(title: "Compresseur", value: Binding(get: { m.comp }, set: { m.setComp($0) }),
-                      tint: Tone.ok)
+                      enabled: m.tremDepth > 0.005)
+                Fader(title: "Compresseur", value: Binding(get: { m.comp }, set: { m.setComp($0) }))
             }
         }
     }
@@ -403,21 +412,21 @@ struct StageView: View {
     // MARK: Barre d'état
 
     private var bottomBar: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 16) {
             status("speaker.wave.2.fill", m.engine.statusAudio)
             if m.hasKeyboard {
                 status("pianokeys", m.engine.midiSourceNames.first ?? "")
             } else {
                 HStack(spacing: 6) {
-                    Image(systemName: "pianokeys").font(.system(size: 10)).foregroundStyle(Tone.warn)
+                    Image(systemName: "pianokeys").font(.system(size: 11)).foregroundStyle(Tone.warn)
                     Text("aucun clavier détecté — branchez-le, il sera pris tout seul")
-                        .font(.system(size: 10.5)).foregroundStyle(Tone.warn)
+                        .font(.system(size: 12)).foregroundStyle(Tone.warn)
                 }
             }
             if let note = m.deviceNote {
-                HStack(spacing: 5) {
-                    Image(systemName: "checkmark.circle.fill").font(.system(size: 10))
-                    Text(note).font(.system(size: 10.5))
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill").font(.system(size: 11))
+                    Text(note).font(.system(size: 12))
                 }
                 .foregroundStyle(Tone.ok)
                 .transition(.opacity)
@@ -427,11 +436,11 @@ struct StageView: View {
             Button { m.toggleLocal() } label: {
                 HStack(spacing: 6) {
                     Image(systemName: m.localSilenced ? "speaker.slash.fill" : "speaker.fill")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: 11, weight: .medium))
                     Text(m.localSilenced ? "Son du piano coupé" : "Son du piano actif")
                         .font(.system(size: 11, weight: .medium))
                 }
-                .padding(.horizontal, 10).padding(.vertical, 6)
+                .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(m.localSilenced ? Tone.bg2 : Tone.warn.opacity(0.18),
                             in: Capsule())
                 .overlay(Capsule().strokeBorder(m.localSilenced ? Tone.line2 : Tone.warn.opacity(0.5), lineWidth: 1))
@@ -440,7 +449,7 @@ struct StageView: View {
             .buttonStyle(.plain)
             .help("Coupe ou rétablit le générateur de son interne du clavier (CC 122). Rétabli automatiquement à la fermeture.")
         }
-        .padding(.horizontal, Metric.pad).padding(.vertical, 9)
+        .padding(.horizontal, Metric.pad).padding(.vertical, 8)
         .background(Tone.bg1, in: RoundedRectangle(cornerRadius: Metric.radius, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Metric.radius, style: .continuous)
             .strokeBorder(Tone.line, lineWidth: 1))
@@ -448,8 +457,8 @@ struct StageView: View {
 
     private func status(_ symbol: String, _ text: String) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: symbol).font(.system(size: 10)).foregroundStyle(Tone.txt2)
-            Text(text).font(.system(size: 10.5)).foregroundStyle(Tone.txt1).lineLimit(1)
+            Image(systemName: symbol).font(.system(size: 11)).foregroundStyle(Tone.txt2)
+            Text(text).font(.system(size: 12)).foregroundStyle(Tone.txt1).lineLimit(1)
         }
     }
 }

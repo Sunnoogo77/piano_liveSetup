@@ -1,41 +1,47 @@
 import SwiftUI
 import CoreImage.CIFilterBuiltins
 
-// Système de design : palette de studio, sombre et froide, une seule couleur
-// d'accent. Les couleurs vives sont réservées à l'information (niveau, alerte),
-// jamais à la décoration — c'est ce qui rend un outil lisible sur scène.
+// Système de design.
+//
+// Direction : un rig de piano de scène. Le monde est celui des consoles et des
+// claviers : panneaux noirs mats, sérigraphie claire, une seule couleur allumée.
+// Le caractère tient en trois mots — posé, exact, chaud sous la main.
+//
+// Trois règles qui expliquent presque tout le fichier :
+//   1. Une seule rampe de gris, froide. Les fonds, les filets et le texte en
+//      sortent tous. Rien d'autre n'a de couleur.
+//   2. Un seul accent, le sarcelle, et il veut dire « c'est ceci qui est actif ».
+//      Les couleurs vives restantes portent une mesure (niveau, alerte), jamais
+//      une décoration.
+//   3. La hiérarchie vient de la taille et de la couleur, pas de la graisse.
+//      Deux graisses suffisent.
 
 enum Tone {
-    static let bg0    = Color(red: 0.039, green: 0.047, blue: 0.063)   // fenêtre
-    static let bg1    = Color(red: 0.067, green: 0.078, blue: 0.102)   // panneaux
-    static let bg2    = Color(red: 0.094, green: 0.108, blue: 0.137)   // éléments surélevés
-    static let bg3    = Color(red: 0.129, green: 0.149, blue: 0.188)   // survol / sélection douce
+    // Rampe froide. Les quatre fonds sont des marches : chaque élément surélevé
+    // monte d'un cran, et la profondeur vient de là — pas d'une ombre portée.
+    static let bg0    = Color(red: 0.043, green: 0.051, blue: 0.078)   // fenêtre
+    static let bg1    = Color(red: 0.067, green: 0.078, blue: 0.110)   // panneaux
+    static let bg2    = Color(red: 0.102, green: 0.118, blue: 0.157)   // éléments surélevés
+    static let bg3    = Color(red: 0.141, green: 0.169, blue: 0.220)   // survol / sélection
 
-    static let line   = Color.white.opacity(0.07)
-    static let line2  = Color.white.opacity(0.12)
+    static let line   = Color.white.opacity(0.08)
+    static let line2  = Color.white.opacity(0.14)
 
-    static let txt0   = Color(red: 0.929, green: 0.945, blue: 0.969)
-    static let txt1   = Color(red: 0.588, green: 0.631, blue: 0.690)
-    static let txt2   = Color(red: 0.361, green: 0.400, blue: 0.463)
+    // Trois rôles de texte, pas davantage. Le troisième reste au-dessus de
+    // 4,5:1 sur un panneau : sur scène, la lumière est mauvaise et l'œil est
+    // ailleurs.
+    static let txt0   = Color(red: 0.933, green: 0.941, blue: 0.961)
+    static let txt1   = Color(red: 0.639, green: 0.663, blue: 0.722)
+    static let txt2   = Color(red: 0.478, green: 0.510, blue: 0.588)
 
     static let accent = Color(red: 0.310, green: 0.820, blue: 0.773)    // sarcelle
-    static let accentDim = Color(red: 0.310, green: 0.820, blue: 0.773).opacity(0.18)
-    static let blue   = Color(red: 0.478, green: 0.635, blue: 0.969)
+    static let accentDim = Color(red: 0.310, green: 0.820, blue: 0.773).opacity(0.16)
 
-    static let ok     = Color(red: 0.329, green: 0.753, blue: 0.478)
+    // Couleurs qui portent une mesure. Elles n'apparaissent que sur un vumètre,
+    // un témoin d'enregistrement ou une alerte.
+    static let ok     = Color(red: 0.298, green: 0.765, blue: 0.541)
     static let warn   = Color(red: 0.878, green: 0.702, blue: 0.255)
-    static let hot    = Color(red: 0.878, green: 0.353, blue: 0.306)
-
-    static func category(_ c: Category) -> Color {
-        switch c {
-        case .acoustic: return Color(red: 0.478, green: 0.635, blue: 0.969)
-        case .electric: return Color(red: 0.706, green: 0.557, blue: 0.808)
-        case .organ:    return Color(red: 0.514, green: 0.780, blue: 0.651)
-        case .pad:      return Color(red: 0.561, green: 0.722, blue: 0.871)
-        case .layered:  return Color(red: 0.788, green: 0.651, blue: 0.420)
-        case .split:    return Color(red: 0.604, green: 0.643, blue: 0.698)
-        }
-    }
+    static let hot    = Color(red: 0.898, green: 0.282, blue: 0.302)
 }
 
 /// Le rendu hors écran ne sait pas dessiner le contenu d'un ScrollView :
@@ -58,20 +64,35 @@ struct Scroll<Content: View>: View {
     }
 }
 
+/// Tout tombe sur une grille de 4 points. Un pas de 2 est toléré à l'intérieur
+/// d'une petite commande, nulle part ailleurs.
 enum Metric {
-    static let radius: CGFloat = 10
-    static let radiusL: CGFloat = 14
-    static let gap: CGFloat = 14
+    static let radius: CGFloat = 10     // commande
+    static let radiusL: CGFloat = 14    // panneau
+    static let radiusS: CGFloat = 6     // pastille, touche de clavier
+    static let gap: CGFloat = 16
     static let pad: CGFloat = 16
+    static let row: CGFloat = 32        // hauteur d'une ligne de navigation
 }
 
 extension Font {
-    /// Petite capitale d'étiquette, comme la sérigraphie d'une console.
-    static func label(_ size: CGFloat = 10) -> Font {
-        .system(size: size, weight: .semibold).width(.condensed)
+    /// Étiquette. En casse normale : une console est sérigraphiée en capitales
+    /// parce que la peinture le permet, un écran n'a pas cette excuse, et les
+    /// capitales espacées se lisent moins vite.
+    static func label(_ size: CGFloat = 11) -> Font {
+        .system(size: size, weight: .medium)
     }
-    static func value(_ size: CGFloat = 13, _ w: Font.Weight = .medium) -> Font {
-        .system(size: size, weight: w, design: .rounded).monospacedDigit()
+    /// Toute valeur mesurée — décibels, hertz, demi-tons, pourcentages. En
+    /// chasse fixe : les chiffres s'alignent en colonne et ne dansent plus
+    /// quand ils changent.
+    static func value(_ size: CGFloat = 12, _ w: Font.Weight = .regular) -> Font {
+        .system(size: size, weight: w, design: .monospaced)
+    }
+    /// Grand nombre affiché : transposition, chronomètre. Famille de
+    /// l'interface, chiffres à largeur fixe — ils ne dansent pas quand ils
+    /// changent, et le zéro garde sa forme ronde.
+    static func display(_ size: CGFloat, _ w: Font.Weight = .medium) -> Font {
+        .system(size: size, weight: w).monospacedDigit()
     }
 }
 
@@ -108,13 +129,13 @@ struct QRCode: View {
 
 // MARK: - Composants
 
-/// Étiquette sérigraphiée.
+/// Étiquette d'un panneau ou d'une commande.
 struct Caption: View {
     let text: String
     var color: Color = Tone.txt2
     var body: some View {
-        Text(text.uppercased())
-            .font(.label()).tracking(1.4)
+        Text(text)
+            .font(.label())
             .foregroundStyle(color)
     }
 }
@@ -126,7 +147,7 @@ struct Panel<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             if title != nil || trailing != nil {
                 HStack {
                     if let title { Caption(text: title) }
@@ -144,29 +165,33 @@ struct Panel<Content: View>: View {
     }
 }
 
-/// Bouton de commande : discret au repos, net au survol, franc à l'appui.
+/// Bouton de commande : discret au repos, une marche plus haut au survol,
+/// enfoncé de deux points à l'appui. Pas d'autre mouvement.
 struct Key: View {
     let label: String
     var symbol: String? = nil
     var tint: Color = Tone.txt0
     var filled = false
     var wide = false
-    var height: CGFloat = 34
+    var height: CGFloat = 32
     let action: () -> Void
     @State private var hover = false
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 6) {
-                if let symbol { Image(systemName: symbol).font(.system(size: 11, weight: .bold)) }
+            HStack(spacing: 8) {
+                if let symbol {
+                    Image(systemName: symbol).font(.system(size: 12, weight: .medium))
+                }
                 if !label.isEmpty {
-                    Text(label).font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                    Text(label).font(.system(size: 12, weight: .medium))
+                        .lineLimit(1).minimumScaleFactor(0.82)
                 }
             }
             .frame(maxWidth: wide ? .infinity : nil)
             .frame(minWidth: wide ? nil : 40, minHeight: height)
-            .padding(.horizontal, wide ? 10 : 12)
-            .background(filled ? tint.opacity(0.9) : (hover ? Tone.bg3 : Tone.bg2),
+            .padding(.horizontal, wide ? 12 : 12)
+            .background(filled ? tint : (hover ? Tone.bg3 : Tone.bg2),
                         in: RoundedRectangle(cornerRadius: Metric.radius, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: Metric.radius, style: .continuous)
                 .strokeBorder(filled ? .clear : Tone.line2, lineWidth: 1))
@@ -174,6 +199,7 @@ struct Key: View {
         }
         .buttonStyle(.plain)
         .onHover { hover = $0 }
+        .animation(.easeOut(duration: 0.12), value: hover)
     }
 }
 
@@ -184,7 +210,7 @@ struct Fader: View {
     let title: String
     @Binding var value: Float
     var range: ClosedRange<Float> = 0...1
-    var format: (Float) -> String = { "\(Int($0 * 100)) %" }
+    var format: (Float) -> String = { "\(Int(($0 * 100).rounded())) %" }
     var tint: Color = Tone.accent
     var enabled = true
 
@@ -195,7 +221,7 @@ struct Fader: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Caption(text: title, color: enabled ? Tone.txt2 : Tone.txt2.opacity(0.45))
                 Spacer()
@@ -206,17 +232,19 @@ struct Fader: View {
                 let w = geo.size.width
                 ZStack(alignment: .leading) {
                     Capsule().fill(Tone.bg2)
-                        .frame(height: 5)
+                        .frame(height: 4)
                     Capsule().fill(enabled ? tint.opacity(hover ? 1 : 0.85) : Tone.txt2.opacity(0.3))
-                        .frame(width: max(5, w * frac), height: 5)
+                        .frame(width: max(4, w * frac), height: 4)
+                    // La poignée se détache par une marche de fond et un filet,
+                    // pas par une ombre : sur un fond sombre une ombre ne se voit
+                    // pas, elle salit.
                     Circle()
                         .fill(enabled ? Tone.txt0 : Tone.txt2.opacity(0.5))
-                        .frame(width: hover && enabled ? 13 : 11,
-                               height: hover && enabled ? 13 : 11)
-                        .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
-                        .offset(x: max(0, min(w - 11, w * frac - 5.5)))
+                        .overlay(Circle().strokeBorder(Tone.bg0.opacity(0.9), lineWidth: 2))
+                        .frame(width: 12, height: 12)
+                        .offset(x: max(0, min(w - 12, w * frac - 6)))
                 }
-                .frame(height: 14)
+                .frame(height: 16)
                 .contentShape(Rectangle())
                 .gesture(
                     DragGesture(minimumDistance: 0)
@@ -227,7 +255,7 @@ struct Fader: View {
                         }
                 )
             }
-            .frame(height: 14)
+            .frame(height: 16)
         }
         .onHover { hover = $0 && enabled }
     }
@@ -249,7 +277,7 @@ struct LevelMeter: View {
     }
 
     var body: some View {
-        VStack(spacing: 3) {
+        VStack(spacing: 4) {
             bar(left, holdL)
             bar(right, holdR)
         }

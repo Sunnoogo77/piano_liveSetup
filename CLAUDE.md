@@ -20,6 +20,15 @@ make update               # passe à la dernière version publiée
 - Chaque modification du traitement du signal ou des presets se termine par
   `make calibrate && make test-audio`.
 
+## Le design
+
+**Avant de toucher à l'interface, lisez « Le langage visuel » dans [AGENTS.md](AGENTS.md)
+(§4 bis).** Une seule couleur allumée, des étiquettes en casse normale, deux graisses, la
+grille de 4. Ces règles viennent de deux dépôts indiqués par l'auteur du projet —
+[unslop](https://github.com/heydamir/unslop) et
+[stageshow](https://github.com/arm1383/stageshow-skills) — et elles s'appliquent des deux
+côtés : l'application et la page de commande sont le même outil.
+
 ## Pour voir votre travail
 
 La capture d'écran du système est souvent refusée à un agent. `make preview` rend les

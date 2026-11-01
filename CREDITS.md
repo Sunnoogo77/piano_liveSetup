@@ -51,6 +51,19 @@ fluid-synth`). Il n'est ni modifié ni redistribué ici. <https://www.fluidsynth
 Les PDF Yamaha du YDP-145 (mode d'emploi, référence MIDI) ne sont pas redistribués : ils
 sont disponibles sur le site de Yamaha. Le projet ne dépend d'aucun document propriétaire.
 
+## Le langage visuel de l'interface
+
+Aucun code n'est repris, mais la méthode et les règles de l'interface viennent de deux
+ensembles de notes de design publiés :
+
+- **unslop**, de Damir Sokolovsky ([@heydamir](https://x.com/heydamir)), sous
+  **CC BY 4.0** — <https://github.com/heydamir/unslop>. L'audit des signes, les passes
+  dans l'ordre, et les valeurs de départ (rampe de gris, échelle de tailles, grille de 4).
+- **stageshow**, de Benji Taylor — <https://github.com/arm1383/stageshow-skills> et
+  <https://benji.org/stageshow>. Les règles de cadrage, de proportion et de retenue.
+
+Ces règles sont écrites, telles qu'appliquées ici, dans [AGENTS.md](AGENTS.md) §4 bis.
+
 ## Ce que le projet ne prétend pas être
 
 Les bibliothèques Nord sont dans un format propriétaire et ne fonctionnent que sur du

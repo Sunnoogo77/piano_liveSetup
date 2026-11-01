@@ -105,6 +105,70 @@ PNG. C'est le seul moyen de *voir* ce qu'on a dessiné sans capture d'écran. Ut
    défaut**, dans l'`init(from:)` écrit à la main. Swift n'applique pas les valeurs par
    défaut aux clés absentes : un oubli efface la configuration de tous ceux qui mettent
    à jour. `rectest` le vérifie.
+9. **Le langage visuel est écrit plus bas et il n'est pas négociable au cas par cas.**
+   Une seule couleur allumée, des étiquettes en casse normale, deux graisses, la grille
+   de 4. Une exception ajoutée « juste pour cet écran » devient la règle le mois suivant.
+10. **L'application et la page disent la même chose avec les mêmes mots.** Un panneau qui
+   s'appelle « Effets » sur le Mac ne s'appelle pas « Couleur » sur la tablette, et un
+   pourcentage s'arrondit des deux côtés. Les deux interfaces sont le même outil.
+
+## 4 bis. Le langage visuel
+
+La direction, en cinq lignes, dont tout le reste découle :
+
+- **Produit** — un rig de piano de scène : un clavier MIDI branché à un Mac devient un
+  instrument prêt à jouer, pour quelqu'un qui monte sur scène.
+- **Caractère** — posé, exact, chaud sous la main.
+- **Monde** — les consoles et les claviers : panneaux noirs mats, sérigraphie claire,
+  une seule couleur allumée dans le noir.
+- **Moments** — l'analyseur et sa courbe d'égalisation ; le clavier 88 touches avec les
+  notes tenues. Ce sont les deux seuls endroits riches de l'outil.
+- **Signature** — les degrés sous les notes de l'accord (`Do¹ Sol⁵ Mi³ Si♭⁷`). Aucun
+  autre produit n'a ça. Gardez-le, et ne le mettez nulle part ailleurs.
+
+Les règles qui en sortent :
+
+- **Une rampe de gris froids, et rien d'autre.** Les quatre fonds (`Tone.bg0…bg3`,
+  `--bg0…--bg4`) sont des marches : la profondeur vient d'une marche et d'un filet d'un
+  pixel, jamais d'une ombre portée — sur fond sombre, une ombre ne se voit pas, elle
+  salit.
+- **Un seul accent, le sarcelle, et il veut dire « c'est ceci qui est actif ».** Les
+  couleurs restantes (`ok`, `warn`, `hot`) portent une mesure : un niveau, un témoin
+  d'enregistrement, une alerte. Jamais une famille de sons, jamais un fader, jamais une
+  décoration. Un graphique n'a qu'un accent : la courbe qu'on règle le porte, le spectre
+  derrière est un gris.
+- **Trois rôles de texte seulement** (`txt0`, `txt1`, `txt2`). Le troisième reste
+  au-dessus de 4,5:1 sur un panneau : sur scène la lumière est mauvaise.
+- **Casse normale partout.** Pas de capitales espacées — `Caption` ne transforme plus
+  rien. Une console est sérigraphiée en capitales parce que la peinture le permet ; un
+  écran n'a pas cette excuse, et les capitales espacées se lisent moins vite.
+- **Deux graisses, `.regular` et `.medium`.** La hiérarchie vient de la taille et de la
+  couleur. Tailles : 10 (graduation d'axe), 11, 12, 13, 15, 18, 22, 28, puis l'affichage.
+  Pas de taille fractionnaire.
+- **Les chiffres.** `Font.value` (chasse fixe) pour une valeur mesurée — décibels,
+  hertz, pourcentages : elles s'alignent en colonne. `Font.display` (famille de
+  l'interface, chiffres à largeur fixe) pour un grand nombre : la chasse fixe y donne un
+  zéro barré qui saute aux yeux.
+- **La grille de 4.** Marges, espacements, hauteurs fixes. Un pas de 2 est toléré à
+  l'intérieur d'une petite commande, nulle part ailleurs. Rayons : 6 pastille,
+  10 commande, 14 panneau.
+- **Rien ne tourne en boucle.** Une animation sans fin dans un coin de l'écran use l'œil
+  pendant un concert. Les seules transitions sont un survol (120 ms) et un changement de
+  valeur. Le point rouge d'un enregistrement en cours est l'exception : là, il se passe
+  vraiment quelque chose.
+- **Une information se dit une fois par écran.** Le bandeau cache la transposition quand
+  l'écran de jeu l'affiche déjà en grand — et seulement dans ce cas, sinon elle
+  disparaîtrait des deux endroits.
+- **Un bouton ne coupe pas son mot en deux.** S'il ne tient pas, c'est la mise en page
+  qu'il faut revoir : en fenêtre étroite, les commandes passent l'une sous l'autre, et
+  l'égaliseur montre les numéros des bandes au lieu de leurs noms.
+
+Ce langage vient des deux dépôts que l'utilisateur a indiqués :
+[unslop](https://github.com/heydamir/unslop) de Damir Sokolovsky (CC BY 4.0) pour la
+méthode — l'audit, puis les passes dans l'ordre : espacement, couleur, icônes, texte,
+typographie, mise en page, détails, images, mouvement — et
+[stageshow](https://github.com/arm1383/stageshow-skills) de Benji Taylor pour les règles
+de cadrage et de proportion. Relisez-les avant une refonte, pas avant une retouche.
 
 ## 5. Pièges déjà rencontrés — ne les redécouvrez pas
 
@@ -268,8 +332,10 @@ qui ressemble à un serveur muet.
 installation allégée), ligne dans `scripts/fetch-soundbanks.sh` avec son empreinte
 SHA-256, et crédit dans `CREDITS.md`.
 
-**Changer l'interface** → modifiez, puis `make build && make preview`, puis *regardez les
-PNG*. Les tailles rendues couvrent 1020, 1440 et 1728 points de large.
+**Changer l'interface** → relisez « Le langage visuel » (§4 bis), modifiez, puis
+`make build && make preview`, puis *regardez les PNG*. Les tailles rendues couvrent 1020,
+1440 et 1728 points de large. Le rendu le plus étroit, `ui-min.png`, est celui qui casse :
+c'est là qu'un bouton coupe son mot et qu'un panneau sort de l'écran.
 
 **Toucher au traitement du signal** → `make test-audio` mesure réellement l'effet de l'EQ
 sur le signal en sortie (+12 dB demandés doivent donner ~+12 dB mesurés).

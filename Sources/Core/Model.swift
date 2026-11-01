@@ -161,11 +161,11 @@ struct EQBand: Codable, Hashable {
 
     var label: String {
         switch kind {
-        case .highPass:  return "HPF"
-        case .lowShelf:  return "GRAVE"
-        case .peaking:   return freq < 700 ? "BAS-MÉD" : (freq < 2500 ? "MÉDIUM" : "PRÉSENCE")
-        case .highShelf: return "AIGU"
-        case .lowPass:   return "LPF"
+        case .highPass:  return "Coupe-bas"
+        case .lowShelf:  return "Grave"
+        case .peaking:   return freq < 700 ? "Bas-méd" : (freq < 2500 ? "Médium" : "Présence")
+        case .highShelf: return "Aigu"
+        case .lowPass:   return "Coupe-haut"
         }
     }
 }

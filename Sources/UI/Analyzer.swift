@@ -67,7 +67,7 @@ struct AnalyzerView: View {
             var p = Path(); p.move(to: CGPoint(x: x, y: 0)); p.addLine(to: CGPoint(x: x, y: h))
             ctx.stroke(p, with: .color(Color.white.opacity(f == 1000 ? 0.09 : 0.05)), lineWidth: 1)
             let label = f >= 1000 ? "\(Int(f / 1000))k" : "\(Int(f))"
-            ctx.draw(Text(label).font(.system(size: 9, weight: .medium)).foregroundStyle(Tone.txt2),
+            ctx.draw(Text(label).font(.system(size: 11, weight: .medium)).foregroundStyle(Tone.txt2),
                      at: CGPoint(x: x + 3, y: h - 9), anchor: .leading)
         }
         for db in stride(from: Float(-12), through: 12, by: 6) {
@@ -76,7 +76,7 @@ struct AnalyzerView: View {
             ctx.stroke(p, with: .color(Color.white.opacity(db == 0 ? 0.14 : 0.05)),
                        style: StrokeStyle(lineWidth: 1, dash: db == 0 ? [] : [2, 4]))
             if db != 0 {
-                ctx.draw(Text("\(Int(db) > 0 ? "+" : "")\(Int(db))").font(.system(size: 9)).foregroundStyle(Tone.txt2),
+                ctx.draw(Text("\(Int(db) > 0 ? "+" : "")\(Int(db))").font(.system(size: 11)).foregroundStyle(Tone.txt2),
                          at: CGPoint(x: w - 5, y: y - 7), anchor: .trailing)
             }
         }
@@ -102,9 +102,9 @@ struct AnalyzerView: View {
         // c'est le trait qu'on lit, le remplissage ne fait que donner la masse.
         ctx.fill(fill, with: .linearGradient(
             Gradient(stops: [
-                .init(color: Tone.blue.opacity(0.34), location: 0.0),
-                .init(color: Tone.accent.opacity(0.13), location: 0.35),
-                .init(color: Tone.accent.opacity(0.0), location: 0.8),
+                .init(color: Color.white.opacity(0.14), location: 0.0),
+                .init(color: Color.white.opacity(0.05), location: 0.35),
+                .init(color: Color.white.opacity(0.0), location: 0.8),
             ]),
             startPoint: CGPoint(x: 0, y: 0), endPoint: CGPoint(x: 0, y: h)))
         var edge = Path()
@@ -113,8 +113,8 @@ struct AnalyzerView: View {
                              y: yForSpec(tap.bandsDB[i], h))
             if i == 0 { edge.move(to: pt) } else { edge.addLine(to: pt) }
         }
-        ctx.stroke(edge, with: .color(Tone.blue.opacity(0.85)), lineWidth: 1.3)
-        ctx.stroke(peakPath, with: .color(Color.white.opacity(0.28)), lineWidth: 1)
+        ctx.stroke(edge, with: .color(Color.white.opacity(0.45)), lineWidth: 1.2)
+        ctx.stroke(peakPath, with: .color(Color.white.opacity(0.22)), lineWidth: 1)
 
         // --- courbe d'égalisation ---
         let steps = 240
@@ -162,7 +162,7 @@ struct AnalyzerView: View {
                     Circle().strokeBorder(Tone.bg0.opacity(0.8), lineWidth: 1.5)
                         .frame(width: selected == i ? 16 : 12, height: selected == i ? 16 : 12)
                     Text("\(i + 1)")
-                        .font(.system(size: 8, weight: .heavy))
+                        .font(.value(10))
                         .foregroundStyle(Tone.bg0)
                         .opacity(selected == i ? 1 : 0)
                 }
