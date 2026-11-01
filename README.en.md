@@ -81,7 +81,10 @@ on remote control: the app publishes a page on your local network. Scan the QR c
 type the address into the tablet's browser, and you get the same screens as on the Mac —
 the 51 sounds with search and collapsible families, the 7-band equaliser with its live spectrum
 analyser and handles you drag with a finger, chords, keyboard, takes, microphone. The
-layout adapts: a sidebar on an iPad in landscape, tabs at the bottom on a phone.
+layout follows the **shape** of the screen, not just its width: a labelled sidebar on an
+iPad in landscape, tabs at the bottom on a phone held upright, and — a phone laid flat on
+the music desk — a column of icons that hands its sixty points of height back to the curve
+and to the eighty-eight keys.
 
 **Nothing to install** — any browser will do. And with **Share → Add to Home Screen** you
 get an icon and full screen, without Safari's chrome: it behaves like an app. Levels,
@@ -95,7 +98,13 @@ home-screen icon carries it, so a device pairs once.
 ![The equaliser on an iPad](docs/images/remote-tablet.jpg)
 
 *The seven-band equaliser on an iPad in landscape: live spectrum, the curve on top, and
-handles you drag with a finger. The Mac makes the sound; the tablet drives it.*
+handles you drag with a finger. The chosen band's faders sit under its strip, the
+microphone fills the height on the right. The Mac makes the sound; the tablet drives it.*
+
+![The remote page on a phone in landscape](docs/images/remote-landscape.jpg)
+
+*The same tool on a phone laid flat: the tabs move to the side as icons, and the
+eighty-eight keys take the full width. Nothing scrolls.*
 
 **Microphone input** with its own gain, compressor and independent 7-band EQ. Monitoring
 is off by default — an open mic next to the piano's speakers will howl. macOS asks for

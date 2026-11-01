@@ -153,8 +153,10 @@ de la tablette.
 **C'est l'application entière, pas un bout.** Les mêmes écrans que sur le Mac : les
 51 sons avec recherche et familles repliables, l'égaliseur sept bandes avec son analyseur de
 spectre et des poignées que l'on déplace au doigt, les accords, le clavier, les prises,
-le micro. La mise en page s'adapte : barre latérale sur iPad en paysage, onglets en bas
-sur téléphone.
+le micro. La mise en page suit la **forme** de l'écran, et pas seulement sa largeur :
+barre latérale étiquetée sur iPad en paysage, onglets en bas sur téléphone debout, et —
+téléphone couché sur le pupitre — une colonne d'icônes qui rend ses soixante points de
+hauteur à la courbe et aux quatre-vingt-huit touches.
 
 **Rien à installer.** C'est un navigateur — iPad, iPhone, tablette Android, autre
 ordinateur. Et avec **Partager → Sur l'écran d'accueil**, vous obtenez une icône et le
@@ -175,8 +177,14 @@ autorisez les connexions entrantes.
 ![L'égaliseur sur un iPad](docs/images/remote-tablet.jpg)
 
 *L'égaliseur sept bandes sur un iPad en paysage : le spectre en temps réel, la courbe
-par-dessus, et les poignées que l'on déplace au doigt. Le Mac fait le son, la tablette
-commande.*
+par-dessus, et les poignées que l'on déplace au doigt. Les faders de la bande choisie se
+posent sous sa rampe, le micro tient toute la hauteur à droite. Le Mac fait le son, la
+tablette commande.*
+
+![La page de commande sur un téléphone en paysage](docs/images/remote-landscape.jpg)
+
+*Le même outil sur un téléphone posé en paysage : les onglets passent sur le côté en
+icônes, et les quatre-vingt-huit touches prennent toute la largeur. Rien ne défile.*
 
 ### Un micro, à l'occasion
 

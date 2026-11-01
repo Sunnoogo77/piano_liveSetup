@@ -163,6 +163,19 @@ Les règles qui en sortent :
   qu'il faut revoir : en fenêtre étroite, les commandes passent l'une sous l'autre, et
   l'égaliseur montre les numéros des bandes au lieu de leurs noms.
 
+- **Trois formes d'écran, pas trois largeurs.** Un téléphone debout : onglets en bas,
+  sous le pouce. Un écran large : barre latérale étiquetée. Un écran couché et bas — le
+  téléphone posé sur le pupitre — où la hauteur est la ressource rare : la barre
+  d'onglets devient une colonne d'icônes, la barre du haut tient sur une ligne, et les
+  quatre-vingt-dix points récupérés vont à la courbe et au clavier. Dans les deux
+  dernières, la page ne défile plus en entier : la barre du haut tient, et c'est la zone
+  des écrans qui défile. C'est la forme d'une console.
+- **Ce qui cède, c'est le grand élément, jamais la commande.** Dans une colonne de
+  hauteur fixe, la courbe se resserre ; la rampe des bandes et les faders gardent leur
+  taille — ce sont eux qu'on cherche du doigt. Et quand un panneau ne remplit pas sa
+  colonne, l'espace reste **en bas**, sous le dernier panneau : deux panneaux écartés
+  aux deux bords se lisent plus mal, pas mieux.
+
 Ce langage vient des deux dépôts que l'utilisateur a indiqués :
 [unslop](https://github.com/heydamir/unslop) de Damir Sokolovsky (CC BY 4.0) pour la
 méthode — l'audit, puis les passes dans l'ordre : espacement, couleur, icônes, texte,
@@ -346,6 +359,30 @@ et la retombée des crêtes en seraient doublés.
 `.ready` côté serveur : rien ne revient, et l'envoi suivant seulement échouera. D'où la
 lecture ouverte en permanence sur chaque flux (`RemoteServer.drain`), uniquement pour
 voir arriver la fin de flux TCP et libérer tout de suite.
+
+**Une grille de hauteur fixe laisse quand même sa rangée grandir.** `height:100%` sur la
+grille ne suffit pas : sans `grid-template-rows` explicite, la rangée implicite se
+dimensionne sur son contenu et déborde. La bibliothèque de 51 sons sortait ainsi de son
+cadre. Il faut `grid-template-rows:minmax(0,1fr)` — et `min-height:0` sur l'enfant, sinon
+sa taille minimale automatique l'empêche de se resserrer.
+
+**`align-items:start` empêche une colonne de prendre la hauteur de son cadre.** Posé pour
+que deux colonnes inégales ne s'alignent pas sur la plus longue, il annule l'étirement :
+la colonne se dimensionne sur son contenu et déborde au lieu de défiler. Si une colonne
+doit remplir la hauteur, remettez `align-items:stretch` et ne calez que le panneau qui
+doit rester en haut (`align-self:start`).
+
+**La largeur de la fenêtre ne dit pas la largeur d'une colonne.** La rampe des sept bandes
+tenait ses noms à 844 points de fenêtre, mais elle n'en avait que 462 : « Coupe-haut » se
+coupait en deux, ce que le langage visuel interdit. C'est une requête de conteneur
+(`@container`) qui décide, sur `.eqmain`, pas une `@media`.
+
+**Deux `span` côte à côte restent sur la même ligne**, et leur `margin-top` ne fait rien.
+Le sous-titre du bouton d'enregistrement s'affichait à la suite du titre depuis le début.
+
+**`vh` n'est pas la hauteur visible sur un téléphone.** Les barres du navigateur sont
+comptées dedans. Toutes les hauteurs d'écran sont écrites deux fois — `vh` puis `dvh` —
+pour que le navigateur qui ignore `dvh` garde la première.
 
 **`timeout` n'existe pas sur macOS.** Dans un script de test, `curl --max-time` fait le
 travail ; `timeout 4 curl …` échoue avec « command not found » et laisse un fichier vide

@@ -65,10 +65,14 @@ function buildNav() {
 function show(id) {
   tab = id;
   localStorage.setItem('plsTab', id);
+  document.body.dataset.tab = id;
   for (const [t] of TABS) $('#s-' + t).classList.toggle('hide', t !== id);
   $$('#tabs button, #railnav button').forEach(b =>
     b.classList.toggle('on', b.dataset.tab === id));
-  if (id === 'eq') requestAnimationFrame(paintEQ);
+  fillAll();
+  // Les deux canevas se redimensionnent quand l'écran s'affiche : un canevas
+  // caché mesure zéro, et garderait la taille qu'il avait avant.
+  if (id === 'eq') requestAnimationFrame(() => { paintEQ(); paintMic(); });
 }
 
 /* ── Clé d'accès ────────────────────────────────────────────────────── */
@@ -290,17 +294,29 @@ function renderLive() {
     ? (L.recNotes || 0) + ' note' + ((L.recNotes || 0) > 1 ? 's' : '') + ' jouée' + ((L.recNotes || 0) > 1 ? 's' : '')
     : 'audio, MIDI, partition et accords';
 
+  // Vert, puis ambre, puis rouge : les mêmes seuils que les deux vumètres du
+  // bandeau et que ceux du Mac. Le sarcelle dit « actif », pas « −8 dB ».
   const mp = L.micPeak;
-  const bar = $('#micmeter');
-  if (mp !== undefined && mp > -119) {
-    bar.style.width = db2pct(mp) + '%';
-    bar.style.opacity = 1;
-  } else { bar.style.width = '0%'; bar.style.opacity = .3; }
+  const bar = $('#micmeter'), micbox = bar.parentElement;
+  const heard = mp !== undefined && mp > -119;
+  bar.style.width = heard ? db2pct(mp) + '%' : '0%';
+  bar.style.opacity = heard ? 1 : .3;
+  micbox.classList.toggle('hot', heard && mp > -1.5);
+  micbox.classList.toggle('warm', heard && mp <= -1.5 && mp > -8);
 
   if (tab === 'eq') { paintEQ(); paintMic(); }
 }
 
 const mmss = s => Math.floor((s || 0) / 60) + '′' + String((s || 0) % 60).padStart(2, '0') + '″';
+
+/* La piste se teinte jusqu'à la valeur, comme sur le Mac : un réglage se lit
+   d'un coup d'œil, sans chercher où est la poignée. */
+function fill(input) {
+  const lo = +input.min, hi = +input.max;
+  const t = hi > lo ? (+input.value - lo) / (hi - lo) : 0;
+  input.style.setProperty('--f', (Math.max(0, Math.min(1, t)) * 100).toFixed(1) + '%');
+}
+const fillAll = () => $$('input[type=range]').forEach(fill);
 
 /* Ne jamais écraser un curseur que le doigt est en train de bouger. */
 function fader(name, value, format, disabled) {
@@ -313,6 +329,7 @@ function fader(name, value, format, disabled) {
   }
   if (grabbed[name]) return;
   if (value !== undefined && value !== null) input.value = value;
+  fill(input);
   const out = $('#v-' + name);
   if (out) out.textContent = input.disabled ? '—'
     : format(value === undefined ? +input.value : value);
@@ -442,6 +459,7 @@ function drawMic() {
     row.classList.toggle('off', !b.usesGain);
     if (grabbed['micb' + i]) return;
     input.value = b.gain;
+    fill(input);
     row.querySelector('.v').textContent = b.usesGain
       ? (b.gain > 0 ? '+' : '') + (+b.gain).toFixed(1) : '—';
   });
@@ -939,6 +957,7 @@ function drawBands() {
     $('#b-q').value = b.q;
     $('#b-qv').textContent = (+b.q).toFixed(2);
   }
+  ['#b-gain', '#b-freq', '#b-q'].forEach(sel => fill($(sel)));
 }
 
 const hz = f => f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 0 : 1) + ' kHz' : Math.round(f) + ' Hz';
@@ -1060,6 +1079,10 @@ function wire() {
   // s'ouvre déjà connectée.
   if (KEY) $('#manifest').href = '/manifest.webmanifest?k=' + encodeURIComponent(KEY);
 
+  document.addEventListener('input', e => {
+    if (e.target && e.target.type === 'range') fill(e.target);
+  }, true);
+
   let resizeTimer = 0;
   addEventListener('resize', () => {
     clearTimeout(resizeTimer);
@@ -1071,6 +1094,15 @@ function wire() {
       paintEQ();
       paintMic();
     }, 120);
+  });
+  addEventListener('orientationchange', () => {
+    setTimeout(() => {
+      ['#k-small', '#k-chord', '#k-big'].forEach(sel => {
+        const el = $(sel);
+        if (el) el.dataset.sig = '';
+      });
+      paintEQ(); paintMic();
+    }, 260);
   });
 
   // Une tablette qu'on réveille : on repart proprement.

@@ -19,7 +19,7 @@
 <!-- Écran de clé : ce que voit un curieux sur le même réseau. -->
 <div id="gate"><div class="box">
   <img src="/icon-180.png" alt="">
-  <h2 style="font-size:19px">Piano Live Setup</h2>
+  <h2>Piano Live Setup</h2>
   <p class="note" style="margin:6px 0 0">
     Saisissez la clé affichée sur le Mac,<br>onglet Périphériques.</p>
   <input id="key" class="num" maxlength="6" autocapitalize="characters"
@@ -73,7 +73,7 @@
 
         <div class="split">
           <div class="grid">
-            <div class="panel">
+            <div class="panel" id="libpanel">
               <div class="head"><span class="cap">Sons</span><span class="sp"></span>
                 <span class="cap num" id="pcount"></span>
                 <button class="btn sm ghost" id="foldall">Tout replier</button></div>
@@ -102,7 +102,7 @@
               <span class="cap">Niveaux</span>
               <div class="grid" style="gap:2px">
                 <div class="fader"><label>Général</label>
-                  <input type="range" class="acc" id="f-master" min="0" max="1" step=".01"
+                  <input type="range" id="f-master" min="0" max="1" step=".01"
                          data-send="master"><span class="v num" id="v-master">—</span></div>
                 <div class="fader" id="w-layer"><label>Nappe</label>
                   <input type="range" id="f-layer" min="0" max="1" step=".01"
@@ -129,7 +129,7 @@
             </div>
 
             <div class="panel tight">
-              <div class="keys" id="k-small" style="height:56px"></div>
+              <div class="keys" id="k-small"></div>
             </div>
           </div>
         </div>
@@ -137,72 +137,74 @@
 
       <!-- ════════ ÉGALISEUR ════════ -->
       <section id="s-eq" class="grid hide">
-        <div id="eqwrap"><canvas id="eqcanvas"></canvas></div>
-        <div id="bandbar"></div>
-        <div class="cols">
-          <div class="panel">
-            <div class="head"><span class="cap" id="bandname">Bande</span><span class="sp"></span>
-              <button class="btn sm" id="bandoff">Couper</button></div>
-            <div class="grid" style="gap:2px">
-              <div class="fader"><label>Gain</label>
-                <input type="range" class="acc" id="b-gain" min="-18" max="18" step=".5">
-                <span class="v num" id="b-gainv">—</span></div>
-              <div class="fader"><label>Fréquence</label>
-                <input type="range" id="b-freq" min="0" max="1000" step="1">
-                <span class="v num" id="b-freqv">—</span></div>
-              <div class="fader"><label>Largeur</label>
-                <input type="range" id="b-q" min="0.3" max="8" step=".05">
-                <span class="v num" id="b-qv">—</span></div>
-            </div>
-          </div>
-          <div class="panel">
-            <div class="head"><span class="cap">Égaliseur</span></div>
-            <p class="note">Faites glisser une poignée sur la courbe : vers le haut et le
-              bas pour le gain, vers la gauche et la droite pour la fréquence. Deux tapes
-              ramènent la bande à plat.</p>
-            <button class="btn wide" id="eqreset" style="margin-top:12px">Tout remettre à plat</button>
-          </div>
+        <!-- La courbe et la rampe de bandes sont un seul geste : on tire une
+             poignée, on lit la bande en dessous. -->
+        <div class="eqmain">
+          <div id="eqwrap"><canvas id="eqcanvas"></canvas></div>
+          <div id="bandbar"></div>
         </div>
 
-        <div class="panel" id="micpanel">
-          <div class="head"><span class="cap">Micro</span><span class="sp"></span>
-            <span class="cap num" id="micauth">—</span>
-            <button class="btn sm" id="micon">—</button></div>
-          <div id="micmsg" class="banner warn hide" style="margin-bottom:12px"></div>
-          <div id="micwrap"><canvas id="miccanvas"></canvas>
-            <div class="off" id="micoff">Ouvrez l'entrée pour voir ce que le micro entend.</div>
-          </div>
-          <div class="meter" style="height:7px"><i id="micmeter"></i></div>
-          <div class="row wrap" style="margin-top:12px">
-            <select id="micdev"></select>
-            <button class="btn sm" id="micmon">Écouter</button>
-            <button class="btn sm ghost" id="micrescan">Chercher les entrées</button>
-          </div>
-          <div class="grid" style="gap:2px;margin-top:12px">
+        <div class="panel" id="bandpanel">
+          <div class="head"><span class="cap" id="bandname">Bande</span><span class="sp"></span>
+            <button class="btn sm" id="bandoff">Couper</button></div>
+          <div class="grid" style="gap:2px">
             <div class="fader"><label>Gain</label>
-              <input type="range" class="acc" id="f-micGain" min="0" max="2" step=".01"
-                     data-send="micGain"><span class="v num" id="v-micGain">—</span></div>
-            <div class="fader"><label>Compresseur</label>
-              <input type="range" id="f-micComp" min="0" max="1" step=".01"
-                     data-send="micComp"><span class="v num" id="v-micComp">—</span></div>
+              <input type="range" id="b-gain" min="-18" max="18" step=".5">
+              <span class="v num" id="b-gainv">—</span></div>
+            <div class="fader"><label>Fréquence</label>
+              <input type="range" id="b-freq" min="0" max="1000" step="1">
+              <span class="v num" id="b-freqv">—</span></div>
+            <div class="fader"><label>Largeur</label>
+              <input type="range" id="b-q" min="0.3" max="8" step=".05">
+              <span class="v num" id="b-qv">—</span></div>
           </div>
-          <div id="micbands" style="margin-top:4px"></div>
-          <button class="btn sm wide" id="micreset" style="margin-top:10px">Égaliseur micro à plat</button>
+          <p class="note" style="margin-top:12px">Faites glisser une poignée sur la
+            courbe : vers le haut et le bas pour le gain, vers la gauche et la droite
+            pour la fréquence. Deux tapes ramènent la bande à plat.</p>
+          <button class="btn wide" id="eqreset" style="margin-top:12px">Tout remettre à plat</button>
+        </div>
+
+        <div class="eqside">
+          <div class="panel" id="micpanel">
+            <div class="head"><span class="cap">Micro</span><span class="sp"></span>
+              <span class="cap num" id="micauth">—</span>
+              <button class="btn sm" id="micon">—</button></div>
+            <div id="micmsg" class="banner warn hide" style="margin-bottom:12px"></div>
+            <div id="micwrap"><canvas id="miccanvas"></canvas>
+              <div class="off" id="micoff">Ouvrez l'entrée pour voir ce que le micro entend.</div>
+            </div>
+            <div class="meter" style="height:6px"><i id="micmeter"></i></div>
+            <div class="row wrap" style="margin-top:12px">
+              <select id="micdev"></select>
+              <button class="btn sm" id="micmon">Écouter</button>
+              <button class="btn sm ghost" id="micrescan">Chercher les entrées</button>
+            </div>
+            <div class="grid" style="gap:2px;margin-top:12px">
+              <div class="fader"><label>Gain</label>
+                <input type="range" id="f-micGain" min="0" max="2" step=".01"
+                       data-send="micGain"><span class="v num" id="v-micGain">—</span></div>
+              <div class="fader"><label>Compresseur</label>
+                <input type="range" id="f-micComp" min="0" max="1" step=".01"
+                       data-send="micComp"><span class="v num" id="v-micComp">—</span></div>
+            </div>
+            <div id="micbands" style="margin-top:4px"></div>
+            <button class="btn sm wide" id="micreset" style="margin-top:10px">Égaliseur micro à plat</button>
+          </div>
         </div>
       </section>
 
       <!-- ════════ ACCORDS ════════ -->
       <section id="s-chords" class="grid hide">
-        <div class="panel" style="text-align:center;padding:var(--s6) var(--s4)">
+        <div class="panel" id="chordbig" style="text-align:center;padding:var(--s6) var(--s4)">
           <div id="bigchord">—</div>
           <div id="bigq"></div>
           <div id="bigdeg" class="num"></div>
           <div id="bignotes"></div>
         </div>
-        <div class="panel tight">
-          <div class="keys" id="k-chord" style="height:74px"></div>
+        <div class="panel tight" id="chordkeys">
+          <div class="keys" id="k-chord"></div>
         </div>
-        <div class="panel">
+        <div class="panel" id="chordhist">
           <span class="cap">Les derniers accords</span>
           <div id="history"></div>
         </div>
@@ -211,14 +213,14 @@
       <!-- ════════ CLAVIER ════════ -->
       <section id="s-keys" class="grid hide">
         <div class="panel tight">
-          <div class="keys big" id="k-big" style="height:clamp(120px,24vh,190px)"></div>
+          <div class="keys big" id="k-big"></div>
         </div>
         <div class="cols">
           <div class="panel"><span class="cap">Notes tenues</span>
-            <div class="num" id="kheld" style="font-size:34px;font-weight:600">0</div>
+            <div class="num" id="kheld">0</div>
             <div class="note" id="knotes">—</div></div>
           <div class="panel"><span class="cap">Accord reconnu</span>
-            <div id="kchord" style="font-size:30px;font-weight:600;color:var(--accent)">—</div>
+            <div id="kchord">—</div>
             <div class="note" id="kq">—</div></div>
           <div class="panel"><span class="cap">Zone</span>
             <div class="note" id="ksplit" style="margin-top:6px">—</div></div>
@@ -234,7 +236,7 @@
           <div class="panel">
             <span class="cap">Réglages de la prise</span>
             <div class="row" style="justify-content:space-between;margin-top:10px">
-              <span style="font-size:12.5px;color:var(--t1)">Enregistrer aussi l'audio</span>
+              <span class="lbl">Enregistrer aussi l'audio</span>
               <button class="btn sm" id="recaudio">—</button>
             </div>
             <div class="fader" style="margin-top:10px"><label>Tempo</label>
@@ -303,7 +305,6 @@
           </div>
         </div>
       </section>
-
     </div>
 
     <nav id="tabs"></nav>

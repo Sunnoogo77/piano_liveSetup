@@ -11,6 +11,53 @@ Pour passer à la dernière version : `./scripts/update.sh`
 
 ---
 
+## 1.4.0 — 2026-11-01
+
+La page de commande suit maintenant la **forme** de l'écran, et pas seulement sa
+largeur. Un téléphone posé en paysage sur le pupitre devient utilisable :
+l'égaliseur et les quatre-vingt-huit touches y tiennent sans rien faire défiler.
+
+### Ajouté
+- **Une troisième mise en page : l'écran couché et bas.** Sur un téléphone en
+  paysage, la barre d'onglets du bas devient une colonne d'icônes à gauche et la
+  barre du haut tient sur une ligne — quatre-vingt-dix points de hauteur rendus à
+  la courbe et au clavier. Les 88 touches et leurs trois panneaux tiennent
+  ensemble dans 390 points.
+- **L'égaliseur en deux colonnes.** Dès qu'il y a la place, la courbe et la rampe
+  des sept bandes occupent la gauche, les faders de la bande choisie se posent
+  juste dessous, et le micro prend toute la hauteur à droite — son analyseur
+  s'agrandit au lieu de laisser un vide. Sur une tablette debout, la courbe passe
+  sur toute la largeur : une courbe large se lit mieux qu'une courbe haute.
+- **La bibliothèque défile dans son panneau.** Sur un écran large, la liste des
+  51 sons défile pour elle-même ; la transposition, les niveaux et les effets ne
+  partent plus vers le haut avec elle.
+- **Les curseurs se remplissent.** La piste se teinte jusqu'à la valeur, comme
+  sur le Mac : un réglage se lit d'un coup d'œil, sans chercher la poignée.
+
+### Corrigé
+- **Le vumètre du micro portait l'accent sarcelle** au lieu des couleurs d'une
+  mesure. Il passe au vert, puis à l'ambre, puis au rouge, aux mêmes seuils que
+  les deux vumètres du bandeau et que ceux du Mac.
+- **« Coupe-haut » se coupait en deux** dans la rampe des bandes dès que celle-ci
+  passait en colonne. La rampe compte maintenant sa propre largeur, et montre les
+  numéros des bandes quand les noms ne tiennent plus — comme le fait
+  l'application quand sa fenêtre se resserre.
+- **L'accord et le nombre de notes tenues** étaient écrits deux fois sur les
+  écrans Accords et Clavier : le bandeau les tait quand l'écran les montre en
+  grand.
+- **Le sous-titre du bouton d'enregistrement** s'affichait sur la même ligne que
+  le titre.
+- Trois tailles de caractères hors de la rampe (14, 12,5 et 19 points) et quatre
+  hauteurs hors de la grille de 4.
+
+### Modifié
+- Les écrans de réglages (Prise, Infos) ne s'étirent plus au-delà d'une largeur
+  de lecture.
+- Le mode d'emploi des poignées rejoint le panneau de la bande, au lieu
+  d'occuper un panneau à lui seul.
+
+---
+
 ## 1.3.0 — 2026-11-01
 
 Vingt sons qui ne sont pas des pianos, une bibliothèque qui se replie famille par
