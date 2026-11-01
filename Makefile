@@ -1,5 +1,5 @@
 # Raccourcis. Tout passe par les scripts, qui restent utilisables seuls.
-.PHONY: all install light build test test-audio portable calibrate preview run clean uninstall
+.PHONY: all install light build test test-audio portable calibrate preview run clean uninstall update check-update
 
 all: install
 
@@ -11,6 +11,12 @@ light:              ## Installation allégée, sans les grands pianos
 
 build:              ## Compiler seulement
 	./scripts/build.sh
+
+update:             ## Passer à la dernière version publiée
+	./scripts/update.sh
+
+check-update:       ## Dire s'il y a du nouveau, sans rien changer
+	@./scripts/update.sh --check || true
 
 test:               ## Tests sans matériel (accords, formats)
 	./scripts/test.sh

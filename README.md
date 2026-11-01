@@ -117,31 +117,51 @@ Un bouton, et chaque prise écrit :
 
 ### Piloter depuis un iPad ou un téléphone
 
-<img src="docs/images/remote-tablet.jpg" width="360" align="right" alt="La page de commande sur une tablette">
+<img src="docs/images/remote-phone.jpg" width="190" align="right" alt="La page de commande sur un téléphone">
 
 Onglet **Périphériques**, activez **Contrôle à distance**. L'application publie une page
 sur votre réseau local. Scannez le QR code affiché, ou tapez l'adresse dans le navigateur
-de la tablette : vous y retrouvez les sons, la transposition, les niveaux, l'égaliseur,
-l'arrêt des notes et l'enregistrement.
+de la tablette.
 
-**Rien à installer sur la tablette.** C'est un navigateur, c'est tout — iPad, iPhone,
-tablette Android, autre ordinateur, peu importe.
+**C'est l'application entière, pas un bout.** Les mêmes écrans que sur le Mac : les
+31 sons avec recherche et familles, l'égaliseur sept bandes avec son analyseur de
+spectre et des poignées que l'on déplace au doigt, les accords, le clavier, les prises,
+le micro. La mise en page s'adapte : barre latérale sur iPad en paysage, onglets en bas
+sur téléphone.
+
+**Rien à installer.** C'est un navigateur — iPad, iPhone, tablette Android, autre
+ordinateur. Et avec **Partager → Sur l'écran d'accueil**, vous obtenez une icône et le
+plein écran, sans la barre de Safari : à l'usage, c'est une application.
 
 Le Mac continue de faire le son : vous gardez les 2,9 ms de latence et le piano à
-16 couches de vélocité. La tablette n'est qu'une surface de commande, à poser sur le
-pupitre pendant que le Mac reste près du piano.
+16 couches de vélocité. Les niveaux, le spectre et les notes tenues arrivent par un flux
+ouvert en permanence, à la cadence de l'application — une seule connexion pour toute la
+séance, pas d'interrogation en boucle.
 
-Une clé d'accès protège la page des curieux du même réseau ; elle est conservée, donc
-l'appareil n'a à se connecter qu'une fois. Le premier lancement peut faire apparaître une
-demande du pare-feu macOS : autorisez les connexions entrantes.
+Une clé d'accès protège la page des curieux du même réseau ; elle est conservée, et
+l'icône de l'écran d'accueil l'emporte avec elle, donc l'appareil ne se connecte qu'une
+fois. Le premier lancement peut faire apparaître une demande du pare-feu macOS :
+autorisez les connexions entrantes.
 
 <br clear="right">
+
+![L'égaliseur sur un iPad](docs/images/remote-tablet.jpg)
+
+*L'égaliseur sept bandes sur un iPad en paysage : le spectre en temps réel, la courbe
+par-dessus, et les poignées que l'on déplace au doigt. Le Mac fait le son, la tablette
+commande.*
 
 ### Un micro, à l'occasion
 
 Entrée micro avec gain, compresseur et un **égaliseur 7 bandes indépendant** de celui du
 piano. Le renvoi dans la sortie est coupé par défaut : un micro ouvert près des
-haut-parleurs siffle.
+haut-parleurs siffle — il faut l'ouvrir exprès.
+
+macOS demande l'autorisation du micro à la première utilisation. Si elle a été refusée,
+l'application le dit et propose d'ouvrir le bon volet des réglages ; et si le
+périphérique s'ouvre mais n'envoie rien — un iPhone verrouillé, une entrée coupée — elle
+le dit aussi au lieu de laisser croire que ça marche. Le micro se pilote aussi depuis la
+tablette, y compris le choix de l'entrée.
 
 ---
 
@@ -151,6 +171,8 @@ haut-parleurs siffle.
 |---|---|
 | `./install.sh` | installation complète |
 | `./install.sh --light` | sans les grands pianos |
+| `./scripts/update.sh` | passer à la dernière version |
+| `./scripts/update.sh --check` | dire s'il y a du nouveau, sans rien changer |
 | `make build` | compiler seulement |
 | `make test` | tests sans matériel (accords, formats d'export) |
 | `make test-audio` | tous les tests, y compris ceux qui jouent du son |
@@ -162,6 +184,33 @@ haut-parleurs siffle.
 Raccourcis dans l'app : `←` `→` transposer · `0` remise à zéro · `[` `]` octave ·
 `↑` `↓` son précédent/suivant · `P` arrêt des notes · `R` enregistrer ·
 `L` son interne du clavier · `⌘1`…`⌘6` changer d'écran.
+
+---
+
+## Rester à jour
+
+```bash
+cd piano_liveSetup && ./scripts/update.sh
+```
+
+Le script récupère, reconstruit, lance les tests, et ne remplace l'application que si
+tout passe. **Vos réglages, vos sons et vos enregistrements ne sont pas touchés** : ils
+vivent dans `~/Music/Piano Live Setup`, en dehors du dépôt. Un fichier de configuration
+écrit par une version plus ancienne reste lisible — les réglages apparus depuis prennent
+leur valeur par défaut, le reste est conservé.
+
+L'application affiche sa version dans l'onglet **Périphériques** et peut demander à
+GitHub s'il existe plus récent. Elle ne télécharge et n'installe jamais rien d'elle-même :
+elle donne la commande, vous décidez.
+
+Ou demandez-le à votre agent :
+
+> Mets à jour Piano Live Setup : trouve le dépôt cloné sur cette machine, lance
+> `./scripts/update.sh`, et montre-moi ce qui a changé.
+
+Détails, retour en arrière et publication d'une version pour un fork :
+[docs/UPDATING.md](docs/UPDATING.md). Ce qui change d'une version à l'autre :
+[CHANGELOG.md](CHANGELOG.md).
 
 ---
 
@@ -187,15 +236,21 @@ le construisant — les pièges — est dans [AGENTS.md](AGENTS.md).
 
 C'est autre chose que le contrôle à distance ci-dessus : là, c'est le moteur de son qui
 tournerait sur l'appareil, sans Mac. **Rien n'est porté à ce jour**, et je ne vais pas
-prétendre le contraire. À noter pour l'iPad et l'iPhone : Apple n'autorise pas
-l'installation d'une application par un script ou depuis un dépôt — il faut Xcode ou
-l'App Store. Sur Windows et Linux, cet obstacle n'existe pas. Mais le cœur est
-déjà portable, et [docs/PORTING.md](docs/PORTING.md) détaille ce que chaque système
-demanderait — avec le chemin qui me semble le plus rentable : un moteur sans interface
-piloté par une page web, ce qui donnerait d'un coup Linux, Windows, **et le contrôle
-depuis un iPad pendant que le Mac fait le son**.
+prétendre le contraire.
 
----
+Pour l'iPad, la réponse courte : une application iOS s'installe par l'App Store,
+TestFlight, ou Xcode sur un Mac relié par un câble. Il n'existe aucun chemin « je clone
+le dépôt et j'installe » sur iPadOS — ce n'est pas un manque de ce projet, c'est la règle
+d'Apple. Quelqu'un qui n'a **qu'un** iPad utilisera donc la page de commande, qui est
+faite pour ça. Le seul chemin vraiment sans Mac serait Swift Playgrounds, qui construit
+sur l'iPad lui-même mais ne sait pas lier FluidSynth : il faudrait repartir sur
+`AVAudioUnitSampler`. [docs/PORTING.md](docs/PORTING.md) dit exactement ce que ça coûte.
+
+Sur Windows et Linux, cet obstacle n'existe pas, et le cœur
+(`Sources/Core/Model.swift`, `DSP.swift`, `Chords.swift`, `Recording.swift`) compile déjà
+sans aucun framework Apple — vérifié à chaque passage de la CI. Ce qui reste à écrire est
+l'hôte audio et MIDI. La page web, elle, n'a rien de spécifique à macOS : un hôte qui
+publie les mêmes routes la réutilise telle quelle.
 
 ## Vous travaillez avec un agent IA ?
 
@@ -209,6 +264,11 @@ Donnez simplement ceci à votre agent :
 
 > Clone https://github.com/Sunnoogo77/piano_liveSetup, lis AGENTS.md, installe-le sur ce
 > Mac en suivant le README, puis vérifie que tout fonctionne avec `make test`.
+
+Et plus tard, pour une mise à jour :
+
+> Mets à jour Piano Live Setup : trouve le dépôt cloné sur cette machine, lance
+> `./scripts/update.sh`, et montre-moi ce qui a changé. Ne touche pas à mes réglages.
 
 ---
 

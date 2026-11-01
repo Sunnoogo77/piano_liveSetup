@@ -476,17 +476,20 @@ struct RigConfig: Codable {
         remoteEnabled = try c.decodeIfPresent(Bool.self, forKey: .remoteEnabled) ?? false
         remotePort = try c.decodeIfPresent(Int.self, forKey: .remotePort) ?? 8787
         remoteKey = try c.decodeIfPresent(String.self, forKey: .remoteKey) ?? ""
+        checkUpdates = try c.decodeIfPresent(Bool.self, forKey: .checkUpdates) ?? true
     }
 
     init(soundsDir: String, presets: [Preset], masterVolume: Float = 0.8,
          audioDeviceName: String = "", bufferFrames: UInt32 = 128,
          localControlOff: Bool = true, currentPreset: String = "Concert Grand",
-         remoteEnabled: Bool = false, remotePort: Int = 8787, remoteKey: String = "") {
+         remoteEnabled: Bool = false, remotePort: Int = 8787, remoteKey: String = "",
+         checkUpdates: Bool = true) {
         self.soundsDir = soundsDir; self.presets = presets
         self.masterVolume = masterVolume; self.audioDeviceName = audioDeviceName
         self.bufferFrames = bufferFrames; self.localControlOff = localControlOff
         self.currentPreset = currentPreset; self.remoteEnabled = remoteEnabled
         self.remotePort = remotePort; self.remoteKey = remoteKey
+        self.checkUpdates = checkUpdates
     }
 
     var soundsDir: String
@@ -501,6 +504,9 @@ struct RigConfig: Codable {
     /// Conservée pour que la tablette n'ait pas à se reconnecter à chaque lancement.
     var remoteKey: String = ""
     var currentPreset: String = "Concert Grand"
+    /// Demander à GitHub, au lancement, s'il existe une version plus récente.
+    /// Rien n'est téléchargé : l'application se contente de le dire.
+    var checkUpdates: Bool = true
 
     static func defaults() -> RigConfig {
         RigConfig(soundsDir: AppPaths.sounds.path, presets: Library.all())

@@ -12,6 +12,18 @@ import Accelerate
 enum FilterKind: Int, Codable, CaseIterable {
     case highPass, lowShelf, peaking, highShelf, lowPass
 
+    /// Nom stable, lisible, pour l'interface web : le code JavaScript
+    /// recalcule la courbe avec les mêmes formules et a besoin du type.
+    var tag: String {
+        switch self {
+        case .highPass:  return "highpass"
+        case .lowShelf:  return "lowshelf"
+        case .peaking:   return "peaking"
+        case .highShelf: return "highshelf"
+        case .lowPass:   return "lowpass"
+        }
+    }
+
     var label: String {
         switch self {
         case .highPass:  return "Coupe-bas"

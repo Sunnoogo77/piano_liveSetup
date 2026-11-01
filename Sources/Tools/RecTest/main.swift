@@ -91,7 +91,8 @@ let head = try! FileHandle(forReadingFrom: wavURL).read(upToCount: 44)!
 check("signature RIFF/WAVE", String(decoding: head[0..<4], as: UTF8.self) == "RIFF"
       && String(decoding: head[8..<12], as: UTF8.self) == "WAVE")
 check("24 bits stéréo 44,1 kHz", head[34] == 24 && head[22] == 2)
-check("données écrites", size > 100_000, "\(size ?? 0) octets, \(String(format: "%.2f", Double(size ?? 0) / (44100 * 6))) s")
+check("données écrites", size > 100_000,
+      "\(size) octets, \(String(format: "%.2f", Double(size) / (44100 * 6))) s")
 
 print("--- Configuration tolérante aux versions ---")
 // Une configuration écrite par une version plus ancienne, à qui il manque des

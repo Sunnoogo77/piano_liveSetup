@@ -184,6 +184,12 @@ struct DevicesScreen: View {
                             Key(label: "Rechercher les appareils", symbol: "arrow.clockwise", wide: true) {
                                 m.engine.rescanMIDI(); m.refreshDevices()
                             }
+                            if let err = m.engine.midiClientError {
+                                Text(err).font(.system(size: 10.5)).foregroundStyle(Tone.hot)
+                            } else {
+                                Text("Détection à chaud active — \(m.engine.midiNotifications) changement(s) vu(s) depuis le lancement.")
+                                    .font(.system(size: 10)).foregroundStyle(Tone.txt2)
+                            }
                         }
                     }
 
@@ -289,6 +295,68 @@ struct DevicesScreen: View {
                     }
                 }
 
+                Panel(title: "Version et mises à jour") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 10) {
+                            Text("Version \(AppInfo.version)")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(Tone.txt0)
+                            Text("\(AppInfo.commit) · \(AppInfo.built)")
+                                .font(.system(size: 10.5)).foregroundStyle(Tone.txt2)
+                            Spacer(minLength: 0)
+                            if m.updateChecking {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Key(label: "Chercher une mise à jour", symbol: "arrow.down.circle") {
+                                    m.checkForUpdate(manual: true)
+                                }
+                            }
+                        }
+
+                        if m.updateNewer, let latest = m.updateLatest {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(spacing: 7) {
+                                    Image(systemName: "sparkles")
+                                        .font(.system(size: 11)).foregroundStyle(Tone.accent)
+                                    Text("La version \(latest) est disponible.")
+                                        .font(.system(size: 11.5, weight: .semibold))
+                                        .foregroundStyle(Tone.accent)
+                                }
+                                Text("Rien n'est installé sans vous. Lancez cette commande dans le Terminal :")
+                                    .font(.system(size: 10.5)).foregroundStyle(Tone.txt1)
+                                HStack(spacing: 8) {
+                                    Text(UpdateCheck.command)
+                                        .font(.system(size: 10.5, design: .monospaced))
+                                        .foregroundStyle(Tone.txt1)
+                                        .textSelection(.enabled)
+                                        .padding(.horizontal, 8).padding(.vertical, 6)
+                                        .background(Tone.bg0, in: RoundedRectangle(cornerRadius: 6))
+                                    Key(label: "Copier", symbol: "doc.on.doc") { m.copyUpdateCommand() }
+                                }
+                            }
+                            .padding(10)
+                            .background(Tone.accent.opacity(0.1), in: RoundedRectangle(cornerRadius: 9))
+                        } else if let msg = m.updateMessage {
+                            Text(msg).font(.system(size: 10.5)).foregroundStyle(Tone.txt1)
+                        }
+
+                        Divider().overlay(Tone.line)
+                        Toggle(isOn: Binding(get: { m.engine.config.checkUpdates },
+                                             set: { m.setCheckUpdates($0) })) {
+                            Text("Regarder au lancement s'il existe une version plus récente")
+                                .font(.system(size: 11)).foregroundStyle(Tone.txt1)
+                        }
+                        .toggleStyle(.switch).tint(Tone.accent)
+                        HStack(spacing: 10) {
+                            Text("Seul le numéro de version est demandé à GitHub. Aucun téléchargement, aucune donnée envoyée.")
+                                .font(.system(size: 10)).foregroundStyle(Tone.txt2)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 0)
+                            Key(label: "Voir le dépôt", symbol: "arrow.up.right.square") { m.openRepo() }
+                        }
+                    }
+                }
+
                 Panel(title: "Entrée micro") {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(spacing: 12) {
@@ -316,6 +384,31 @@ struct DevicesScreen: View {
                             }
                         }
 
+                        // L'autorisation d'abord : sans elle, le périphérique
+                        // s'ouvre sans erreur et n'envoie que du silence.
+                        HStack(spacing: 8) {
+                            Image(systemName: m.micAuth == .authorized
+                                  ? "checkmark.seal.fill" : "exclamationmark.shield.fill")
+                                .font(.system(size: 11))
+                                .foregroundStyle(m.micAuth == .authorized ? Tone.ok : Tone.warn)
+                            Text("Autorisation macOS : \(m.micAuth.human)")
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(m.micAuth == .authorized ? Tone.txt2 : Tone.warn)
+                            if m.micAuth == .denied || m.micAuth == .restricted {
+                                Key(label: "Ouvrir les réglages", symbol: "gear") { m.openMicSettings() }
+                                Key(label: "Revérifier", symbol: "arrow.clockwise") { m.refreshMicAuth() }
+                            }
+                            Key(label: "Chercher les entrées", symbol: "arrow.clockwise") {
+                                m.refreshDevices()
+                            }
+                            Spacer(minLength: 0)
+                        }
+
+                        if m.micOn && !m.micMonitoring {
+                            Text("L'entrée est ouverte mais l'écoute est coupée : rien ne sort. Activez « Envoyer dans la sortie » pour l'entendre.")
+                                .font(.system(size: 10.5)).foregroundStyle(Tone.txt1)
+                        }
+
                         if m.micMonitoring {
                             HStack(spacing: 7) {
                                 Image(systemName: "exclamationmark.triangle.fill")
@@ -327,7 +420,9 @@ struct DevicesScreen: View {
                             .background(Tone.warn.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
                         }
                         if let msg = m.micMessage {
-                            Text(msg).font(.system(size: 10.5)).foregroundStyle(Tone.hot)
+                            Text(msg).font(.system(size: 10.5))
+                                .foregroundStyle(m.micSilent ? Tone.warn : Tone.hot)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
 
                         HStack(spacing: 20) {

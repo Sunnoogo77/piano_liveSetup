@@ -37,7 +37,9 @@ Sources/Core/
   DSP.swift         biquads RBJ, chaîne de traitement, analyseur FFT
   Chords.swift      reconnaissance d'accords et écriture des notes par degré
   Recording.swift   prise, WAV 24 bits, fichier MIDI standard, MusicXML, grille d'accords
-  Mic.swift         entrée micro via AudioDeviceIOProc, rééchantillonnage asservi
+  Mic.swift         entrée micro via AudioDeviceIOProc, rééchantillonnage asservi,
+                    et MicPermission (autorisation macOS)
+  Update.swift      SemVer et interrogation des étiquettes du dépôt
   Engine.swift      FluidSynth + AVAudioEngine + CoreMIDI, le cœur
 Sources/UI/
   Design.swift      palette, composants (Panel, Key, Fader, LevelMeter, Scroll)
@@ -49,11 +51,33 @@ Sources/UI/
   Screens2.swift    écrans Enregistrer et Périphériques
   Main.swift        point d'entrée @main et raccourcis clavier
 Sources/Web/
-  remote.html       la page de commande, transformée en chaîne Swift à la construction
-                    par scripts/gen-web.py — modifiez le HTML, pas le fichier généré
+  remote.html       structure de la page de commande (les écrans)
+  remote.css        sa feuille de style
+  remote.js         sa logique : flux SSE, rendu, analyseur en canvas
+                    Les trois sont assemblés en un seul fichier par scripts/gen-web.py,
+                    qui y ajoute les icônes en base64 et écrit build/gen/WebAssets.swift.
+                    Modifiez ces trois fichiers, jamais le fichier généré.
 Sources/Tools/      outils en ligne de commande, un dossier = une cible
-                    MakeIcon fabrique l'icône de l'application à chaque construction
+                    MakeIcon fabrique l'icône de l'application et celles de la page web
+build/gen/          engendré à chaque construction, jamais versionné
+  Version.swift     AppInfo : version, commit, date, dépôt (déduit du remote Git)
+  WebAssets.swift   la page de commande et ses icônes
 ```
+
+### Comment l'état voyage jusqu'à la tablette
+
+Deux chemins, à ne pas confondre :
+
+| | Quoi | Quand |
+|---|---|---|
+| `/api/stream` (SSE) | niveaux, spectre, notes tenues, accord, chrono | 24 fois par seconde, poussé |
+| `/api/state` | sons, égaliseur, prises, micro, version | seulement quand ça change |
+
+`RigModel.publishRemote()` envoie le premier à chaque tic. `refreshRemoteSlow()`
+reconstruit le second, le compare à l'envoi précédent et n'incrémente `rev` que s'il
+diffère ; la page voit `rev` changer dans le flux et relit `/api/state` d'elle-même.
+Si vous ajoutez un réglage visible à distance, mettez-le dans le **lent**, et ajoutez sa
+commande dans `handleRemote`.
 
 Un fichier compte : **`Sources/Tools/Preview/main.swift`** rend l'interface hors écran en
 PNG. C'est le seul moyen de *voir* ce qu'on a dessiné sans capture d'écran. Utilisez-le.
@@ -74,6 +98,13 @@ PNG. C'est le seul moyen de *voir* ce qu'on a dessiné sans capture d'écran. Ut
    envoyé au clavier est CC 122 (Local Control), rétabli à la fermeture.
 6. **Aucune marque en dur.** Les périphériques sont choisis par `DevicePicker`, jamais par
    un nom de fabricant.
+7. **Ne faites jamais installer une mise à jour par l'application elle-même.** Elle dit
+   qu'une version existe et donne la commande ; c'est l'utilisateur qui lance
+   `scripts/update.sh`. Un rig de scène ne se met pas à jour tout seul pendant un concert.
+8. **Un réglage ajouté à `RigConfig` se décode avec `decodeIfPresent` et une valeur par
+   défaut**, dans l'`init(from:)` écrit à la main. Swift n'applique pas les valeurs par
+   défaut aux clés absentes : un oubli efface la configuration de tous ceux qui mettent
+   à jour. `rectest` le vérifie.
 
 ## 5. Pièges déjà rencontrés — ne les redécouvrez pas
 
@@ -159,6 +190,75 @@ Un test instable qu'on « corrige » en desserrant son seuil ne teste plus rien.
 `ChordTest`, le détecteur avait raison et le test avait tort (La-Do-Mi-Sol est Am7, pas
 Do/La). Vérifiez la théorie avant de « corriger » le code.
 
+**Le premier client CoreMIDI du processus confisque la livraison des notifications.**
+C'est le piège le plus coûteux de ce projet, et il ne ressemble à rien de ce qu'on
+imagine en le lisant.
+
+CoreMIDI accroche la livraison des changements de configuration à la run loop du thread
+qui crée le client — et cette livraison est **par processus**, pas par client. Si un
+autre morceau de code (FluidSynth, un framework audio) crée un client avant nous sur un
+thread qui ne fait jamais tourner sa run loop, **plus aucun client du processus ne reçoit
+quoi que ce soit**. Pire : `MIDIGetNumberOfSources()` est rafraîchi par ce même canal.
+La liste des appareils reste donc figée sur ce qu'elle était au lancement, pour toute la
+séance, sans la moindre erreur. Un clavier allumé après coup n'existe tout simplement
+pas, et un balayage forcé n'y change rien.
+
+Vérifié sur un cas minimal : un « squatteur » — un client créé en premier sur un thread
+endormi — suffit à bloquer la détection d'un second client pourtant parfaitement posé sur
+une run loop vivante. Sans lui, tout marche.
+
+D'où la règle, et elle n'est pas négociable :
+
+1. `RigModel.boot()` appelle `engine.startMIDI()` **en tout premier**, avant le
+   chargement des banques et avant l'ouverture de l'audio.
+2. `startMIDI()` ouvre un thread à nous (`piano.midi`), y crée le client, et fait
+   tourner sa run loop indéfiniment (`RunLoop.current.add(NSMachPort(), …)` puis une
+   boucle `run(mode:before:)`). On ne dépend plus de la run loop de personne.
+3. Comme le client naît avant l'audio, `followKeyboardIfPossible()` est gardé par
+   `audioReady` : sinon une notification précoce ferait basculer la sortie pendant que
+   `startAudio()` tourne sur un autre thread.
+4. CoreMIDI refuse parfois un client dans les toutes premières millisecondes :
+   `startMIDI()` réessaie huit fois à 150 ms d'intervalle.
+
+Pour vérifier sans débrancher le piano : un processus séparé crée une source MIDI
+virtuelle (`MIDISourceCreate`), et l'application doit la faire apparaître dans
+`keyboards` en une seconde ou deux. Le compteur `midiEvents` de `/api/state`, affiché
+aussi dans l'onglet Périphériques, dit combien de changements ont été reçus : **s'il
+reste à zéro quand on branche quelque chose, c'est que la livraison est confisquée.**
+
+**Un périphérique audio USB peut ne jamais répondre, et `setDeviceID` n'a pas de délai
+d'attente.** Un piano éteint à moitié, ou dont le câble a été retiré au mauvais moment,
+reste listé par CoreAudio mais bloque `AUHALOutputUnit.setDeviceID` indéfiniment, dans
+`mach_msg`. Appelé depuis le thread principal — c'était le cas de
+`followKeyboardIfPossible()` — il gèle toute l'application, écran compris. D'où
+`switchAudioDevice(named:completion:)`, qui fait la bascule sur une file à part, et le
+chien de garde de `RigModel.armAudioWatchdog()` qui, au bout de neuf secondes, dit à
+l'écran de chargement ce qui se passe au lieu de laisser tourner l'anneau indéfiniment.
+
+**Le micro s'ouvre, démarre sans erreur, et n'envoie que des zéros.** Il manquait
+`NSMicrophoneUsageDescription` dans `resources/Info.plist`. Sans cette clé macOS ne
+demande jamais l'autorisation : `AudioDeviceStart` renvoie `noErr`, le bloc d'entrée est
+appelé, et tous les échantillons valent 0. Aucune erreur nulle part. Il faut **la clé
+dans le plist** *et* une demande explicite (`MicPermission.request`, qui passe par
+`AVCaptureDevice`). `RigModel.watchMic()` surveille en plus le niveau d'entrée et le dit
+au bout de 2,5 s de zéro absolu, plutôt que de laisser croire que tout va bien.
+
+**L'analyseur n'est calculé que par celui qui le regarde.** `SpectrumTap.analyse()` est
+appelé depuis `AnalyzerView.draw`. Si l'écran Égaliseur du Mac n'est pas affiché,
+personne ne l'appelle et `bandsDB` reste plat — la tablette recevait un spectre à zéro.
+`publishRemote()` le réveille quand un appareil distant est connecté et que l'écran
+Égaliseur n'est pas au premier plan. Ne l'appelez pas deux fois par image : le lissage
+et la retombée des crêtes en seraient doublés.
+
+**Une tablette qui ferme l'onglet ne prévient pas.** Une connexion SSE abandonnée reste
+`.ready` côté serveur : rien ne revient, et l'envoi suivant seulement échouera. D'où la
+lecture ouverte en permanence sur chaque flux (`RemoteServer.drain`), uniquement pour
+voir arriver la fin de flux TCP et libérer tout de suite.
+
+**`timeout` n'existe pas sur macOS.** Dans un script de test, `curl --max-time` fait le
+travail ; `timeout 4 curl …` échoue avec « command not found » et laisse un fichier vide
+qui ressemble à un serveur muet.
+
 ## 6. Tâches courantes
 
 **Ajouter un son** → `Library.all()` dans `Model.swift`, puis `make calibrate`, puis
@@ -173,6 +273,27 @@ PNG*. Les tailles rendues couvrent 1020, 1440 et 1728 points de large.
 
 **Toucher au traitement du signal** → `make test-audio` mesure réellement l'effet de l'EQ
 sur le signal en sortie (+12 dB demandés doivent donner ~+12 dB mesurés).
+
+**Changer la page de commande** → modifiez `Sources/Web/remote.{html,css,js}`, puis
+`make build`. Pour la *voir* : lancez l'application, activez le contrôle à distance, et
+ouvrez l'adresse dans un navigateur que vous redimensionnez (1180×820 pour un iPad en
+paysage, 375×812 pour un téléphone). `build/bin/remotetest` vérifie que la page est
+servie entière, que les icônes et le manifeste répondent, que le flux pousse des trames
+distinctes et que chaque commande arrive.
+
+**Ajouter une commande à distance** → un `case` dans `RigModel.handleRemote`, le réglage
+correspondant dans `refreshRemoteSlow` (état lent) ou `publishRemote` (état rapide), le
+contrôle dans `remote.html` / `remote.js`, et une ligne dans la liste du test.
+
+**Publier une version** → voir [docs/UPDATING.md](docs/UPDATING.md), section « Publier une
+version ». En résumé : `VERSION`, `CHANGELOG.md`, tests, commit, étiquette `vX.Y.Z`,
+`git push --tags`. Sans étiquette, aucune copie installée ne saura qu'il y a du nouveau.
+
+**Mettre à jour une installation** → `./scripts/update.sh`. S'il s'arrête parce que le
+dépôt a des modifications locales ou un historique divergé, **ne forcez pas** : montrez
+le message à l'utilisateur, il contient les deux commandes au choix. Si la construction
+ou les tests échouent, l'application en place n'a pas été remplacée — dites-le, et ne
+copiez pas le bundle à la main pour « finir le travail ».
 
 ## 7. Ce qui est vérifié automatiquement
 

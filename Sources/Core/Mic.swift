@@ -1,6 +1,56 @@
 import Foundation
 import CoreAudio
 import AudioToolbox
+import AVFoundation
+
+// L'autorisation du micro, à part. Sur macOS, un programme qui ouvre une
+// entrée audio doit :
+//   1. porter la clé NSMicrophoneUsageDescription dans son Info.plist ;
+//   2. demander l'autorisation explicitement.
+// Sans le premier point, le système ne demande rien et l'entrée reste muette
+// — le périphérique s'ouvre, le démarrage réussit, et il n'arrive que des
+// zéros. C'était exactement le symptôme : « le micro ne passe pas », sans
+// aucun message d'erreur.
+
+enum MicPermission {
+
+    enum Status: String {
+        case authorized, denied, restricted, undetermined
+
+        var human: String {
+            switch self {
+            case .authorized:   return "autorisé"
+            case .denied:       return "refusé dans Réglages Système"
+            case .restricted:   return "interdit par une règle de l'appareil"
+            case .undetermined: return "pas encore demandé"
+            }
+        }
+    }
+
+    static var status: Status {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized:    return .authorized
+        case .denied:        return .denied
+        case .restricted:    return .restricted
+        case .notDetermined: return .undetermined
+        @unknown default:    return .undetermined
+        }
+    }
+
+    /// Demande l'autorisation si elle n'a jamais été demandée. macOS affiche
+    /// alors sa fenêtre ; il n'y a pas moyen de l'éviter, et c'est tant mieux.
+    static func request(_ done: @escaping @Sendable (Status) -> Void) {
+        guard status == .undetermined else { done(status); return }
+        AVCaptureDevice.requestAccess(for: .audio) { _ in
+            DispatchQueue.main.async { done(status) }
+        }
+    }
+
+    /// Le chemin exact à donner à quelqu'un dont l'autorisation est refusée.
+    static let settingsHint =
+        "Réglages Système → Confidentialité et sécurité → Microphone, "
+        + "puis cochez Piano Live Setup."
+}
 
 // Entrée micro. Le micro est presque toujours sur un autre périphérique que la
 // sortie (micro intégré du Mac, interface USB…), donc deux horloges différentes.

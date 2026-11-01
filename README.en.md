@@ -69,15 +69,32 @@ reads *E G♯ B D*. 43 reference chords are checked automatically.
 `performance.mid` (exact timing, replayable on the piano), `partition.musicxml` (two
 staves, for MuseScore, Dorico, Finale), `accords.txt` (time-stamped chord chart).
 
-**Remote control from a tablet.** In the Devices tab, turn on remote control: the app
-publishes a page on your local network. Scan the QR code shown, or type the address into
-the tablet's browser, and you get the sounds, transposition, levels, EQ, panic and
-recording. **Nothing to install on the tablet** — any browser will do. The Mac keeps
-making the sound, so you keep the 2.9 ms latency and the 16-velocity-layer piano. An
-access key keeps other people on the network out, and it is remembered.
+**Remote control from a tablet — the whole app, not a subset.** In the Devices tab, turn
+on remote control: the app publishes a page on your local network. Scan the QR code, or
+type the address into the tablet's browser, and you get the same screens as on the Mac —
+the 31 sounds with search and families, the 7-band equaliser with its live spectrum
+analyser and handles you drag with a finger, chords, keyboard, takes, microphone. The
+layout adapts: a sidebar on an iPad in landscape, tabs at the bottom on a phone.
+
+**Nothing to install** — any browser will do. And with **Share → Add to Home Screen** you
+get an icon and full screen, without Safari's chrome: it behaves like an app. Levels,
+spectrum and held notes arrive over a stream kept open at the app's own frame rate — one
+connection for the whole session, no polling.
+
+The Mac keeps making the sound, so you keep the 2.9 ms latency and the 16-velocity-layer
+piano. An access key keeps other people on the network out; it is remembered, and the
+home-screen icon carries it, so a device pairs once.
+
+![The equaliser on an iPad](docs/images/remote-tablet.jpg)
+
+*The seven-band equaliser on an iPad in landscape: live spectrum, the curve on top, and
+handles you drag with a finger. The Mac makes the sound; the tablet drives it.*
 
 **Microphone input** with its own gain, compressor and independent 7-band EQ. Monitoring
-is off by default — an open mic next to the piano's speakers will howl.
+is off by default — an open mic next to the piano's speakers will howl. macOS asks for
+microphone permission the first time; if it was refused the app says so and offers to
+open the right settings pane, and if the device opens but sends nothing — a locked
+iPhone, a muted input — it says that too instead of pretending to work.
 
 ---
 
@@ -87,12 +104,38 @@ is off by default — an open mic next to the piano's speakers will howl.
 |---|---|
 | `./install.sh` | full install |
 | `./install.sh --light` | without the large pianos |
+| `./scripts/update.sh` | move to the latest published version |
+| `./scripts/update.sh --check` | say whether there is anything new, change nothing |
 | `make build` | build only |
 | `make test` | hardware-free tests (chords, export formats, portable core) |
 | `make test-audio` | everything, including tests that play sound |
 | `make calibrate` | re-balance the sounds after editing presets |
 | `make preview` | render the interface to PNG without opening the app |
 | `make portable` | check the core still builds without Apple frameworks |
+
+---
+
+## Staying up to date
+
+```bash
+cd piano_liveSetup && ./scripts/update.sh
+```
+
+Fetches, rebuilds, runs the tests, and only replaces the installed app if everything
+passes. **Your settings, sounds and recordings are never touched** — they live in
+`~/Music/Piano Live Setup`, outside the repository, and a config file written by an older
+version stays readable. The app shows its version in the Devices tab and can ask GitHub
+whether anything newer exists; it never downloads or installs anything by itself.
+
+Details, rolling back, and publishing a version from a fork:
+[docs/UPDATING.md](docs/UPDATING.md). What changed:
+[CHANGELOG.md](CHANGELOG.md).
+
+> Note for iPad owners: the page above is a remote control, not the app itself. iPadOS
+> only installs apps through the App Store, TestFlight, or Xcode on a connected Mac —
+> there is no "clone and install" path, and that is Apple's rule, not a gap in this
+> project. [docs/PORTING.md](docs/PORTING.md) explains what a native port would really
+> cost.
 
 ---
 

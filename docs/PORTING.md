@@ -15,27 +15,81 @@ en Swift pur ailleurs. Les deux donnent les mêmes mesures — c'est vérifié p
 
 **Aucun portage n'est fait à ce jour.** Ce qui suit est un plan, pas une promesse.
 
-## iPad et iPhone — le plus proche
+## iPad et iPhone
 
-Presque tout existe déjà sur iOS : Swift, SwiftUI, `AVAudioEngine`, CoreMIDI, et
-FluidSynth se compile pour iOS.
+Deux questions différentes se cachent derrière « est-ce que ça tourne sur
+iPad ? ». Elles n'ont pas la même réponse.
 
-À remplacer :
+### 1. Piloter depuis un iPad — **fait, aujourd'hui**
+
+L'application publie une page sur le réseau local (onglet *Périphériques* →
+*Contrôle à distance*). La tablette ouvre cette page et retrouve les mêmes
+écrans que le Mac : sons, égaliseur sept bandes avec analyseur de spectre,
+accords, clavier, enregistrement, micro.
+
+Posée sur l'écran d'accueil (**Partager → Sur l'écran d'accueil**), elle a son
+icône et s'ouvre en plein écran, sans barre de Safari : à l'usage, c'est une
+application. Rien à installer, rien à compiler, aucun compte.
+
+Ce qu'il faut savoir :
+
+- le son sort du Mac ; la tablette est une surface de commande ;
+- l'icône emporte la clé d'accès, donc elle s'ouvre déjà connectée ;
+- pas de fonctionnement hors ligne. Un *service worker* exige une connexion
+  sécurisée, et on sert du HTTP en clair sur le réseau local. Sans le Mac, la
+  page affiche qu'elle ne le trouve plus.
+
+### 2. Faire tourner le moteur **sur** l'iPad — possible, mais
+
+Côté code, presque tout existe sur iOS : Swift, SwiftUI, `AVAudioEngine`,
+CoreMIDI. À remplacer :
 
 | macOS | iOS |
 |---|---|
 | énumération CoreAudio HAL | `AVAudioSession.availableInputs`, la sortie est celle du système |
 | `kAudioDevicePropertyBufferFrameSize` | `AVAudioSession.setPreferredIOBufferDuration` |
-| `AudioDeviceIOProc` pour le micro | `AVAudioEngine.inputNode`, même session donc même horloge — plus simple qu'ici |
+| `AudioDeviceIOProc` pour le micro | `AVAudioEngine.inputNode` — même session, même horloge : plus simple qu'ici |
 | `NSEvent`, `NSWorkspace`, `NSApplication` | équivalents UIKit, ou rien |
+| `NWListener` pour la page de commande | identique, `Network` existe sur iOS |
 
-Points durs : un iPad a besoin d'un adaptateur USB alimenté pour un clavier, et
-1,5 Go d'échantillons passent mal — utilisez l'installation allégée. L'iPhone est
-trop étroit pour l'égaliseur et l'analyseur côte à côte : il faudrait une mise en
-page réduite, et l'écran Jeu seul a du sens.
+**Le vrai obstacle est l'installation, et il ne vient pas de ce code.** Sur
+iPadOS, une application s'installe par l'App Store, par TestFlight, ou depuis
+Xcode sur un Mac relié. Il n'existe aucun chemin « je clone le dépôt et
+j'installe » — ni pour vous, ni pour un agent. Concrètement :
 
-Le vrai obstacle n'est pas technique : une app iOS s'installe par l'App Store ou
-Xcode, pas par un script. Il faut un projet Xcode et un compte développeur.
+| Comment | Ce qu'il faut | Durée de vie |
+|---|---|---|
+| Xcode sur un Mac, par le câble | un Mac, un identifiant Apple gratuit | 7 jours, à resigner |
+| TestFlight ou App Store | compte développeur Apple (99 $/an) + un Mac pour la soumission | permanent |
+| Marché alternatif (UE seulement) | compte développeur, notarisation, **et un Mac pour construire** | selon le marché |
+
+Donc : quelqu'un qui n'a **qu'un** iPad ne peut pas obtenir cette application
+en application, quoi qu'on écrive dans le dépôt. Il peut en revanche utiliser
+la page de commande tout de suite — c'est pour cela qu'elle existe.
+
+### 3. Le seul chemin sans Mac du tout : Swift Playgrounds
+
+Swift Playgrounds, gratuit sur l'App Store, construit et exécute une
+application SwiftUI **sur** l'iPad, et sait la soumettre à l'App Store. Mais il
+ne sait pas lier une bibliothèque C : **FluidSynth est hors jeu.**
+
+Le remplaçant existe et est fourni par Apple : `AVAudioUnitSampler` charge
+directement un SF2 et joue du MIDI. Une variante « tout Swift, tout Apple » est
+donc faisable. Ce qu'elle coûte, honnêtement :
+
+- `AVAudioUnitSampler` ne donne pas la main sur les réglages fins par banque
+  (`fluid_synth_set_gen`, réverbération, chorus) ; l'équilibre des 31 sons
+  serait à refaire à l'oreille ;
+- un son par échantillonneur : les superpositions demandent plusieurs nœuds ;
+- la chaîne de traitement (égaliseur, saturation, trémolo, limiteur) se place
+  dans un `AVAudioSourceNode` ou un `AVAudioUnit` — le code DSP lui-même
+  (`DSP.swift`) est déjà portable et se réutilise tel quel ;
+- un clavier USB demande un adaptateur alimenté, et 1,5 Go d'échantillons ne
+  passent pas : installation allégée obligatoire.
+
+C'est un projet à part entière, pas une adaptation. Si vous le tentez,
+commencez par l'étape 1 de la feuille de route ci-dessous : le cœur est déjà
+prêt, c'est l'hôte qui change.
 
 ## Linux
 
@@ -66,14 +120,16 @@ rapporte le plus vite :
    une basée sur les pilotes FluidSynth pour Linux et Windows.
 3. **Un exécutable sans interface** qui expose l'état et les commandes en HTTP et
    WebSocket sur le réseau local.
-4. **Une interface web** servie par cet exécutable. Elle résout trois problèmes d'un
-   coup : Linux et Windows ont enfin une interface, **et un iPad ou un téléphone
-   peut piloter le rig à distance pendant que le Mac fait le son** — ce qui est
-   souvent ce qu'on veut vraiment sur scène, plutôt que de faire tourner le moteur
-   sur la tablette.
+4. ~~**Une interface web** servie par cet exécutable.~~ **Faite** — voir
+   `Sources/Core/RemoteServer.swift` et `Sources/Web/`. Un iPad ou un téléphone
+   pilote le rig pendant que le Mac fait le son, ce qui est souvent ce qu'on veut
+   vraiment sur scène. Elle est écrite sans rien de spécifique à macOS côté
+   navigateur : un hôte Linux ou Windows qui publie les mêmes routes
+   (`/api/stream`, `/api/state`, `/api/library`, `/api/cmd`) réutilise la page
+   telle quelle.
 
-L'étape 4 est probablement la plus utile pour le moins d'effort. Si vous la tentez,
-gardez l'application macOS telle quelle : elle reste la référence qui sonne.
+Les étapes 1 à 3 restent à faire. Si vous les tentez, gardez l'application macOS
+telle quelle : elle reste la référence qui sonne.
 
 ## Si vous vous lancez
 

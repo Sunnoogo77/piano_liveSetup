@@ -62,7 +62,35 @@ if let r = request(base + "/") {
     check("servie sans clé", r.status == 200, "\(r.body.count) octets")
     check("c'est bien la page", html.contains("Piano Live Setup") && html.contains("Transposition"))
     check("prévue pour une tablette", html.contains("viewport") && html.contains("apple-mobile-web-app-capable"))
+    check("la feuille de style est injectée", html.contains("--accent:#4FD1C5"))
+    check("le script est injecté", html.contains("function paintEQ"))
+    check("tous les écrans sont là",
+          ["s-play", "s-eq", "s-chords", "s-keys", "s-rec", "s-info"].allSatisfy { html.contains($0) })
+    check("l'analyseur est là", html.contains("eqcanvas"))
 } else { check("la page répond", false) }
+
+print("\n--- Installable sur l'écran d'accueil ---")
+if let r = request(base + "/manifest.webmanifest"),
+   let obj = try? JSONSerialization.jsonObject(with: r.body) as? [String: Any] {
+    check("le manifeste est servi sans clé", r.status == 200)
+    check("plein écran", obj["display"] as? String == "standalone")
+    check("sans clé, départ à la racine", obj["start_url"] as? String == "/")
+    check("trois icônes déclarées", (obj["icons"] as? [[String: Any]])?.count == 3)
+} else { check("manifeste lisible", false) }
+
+if let r = request(base + "/manifest.webmanifest?k=" + key),
+   let obj = try? JSONSerialization.jsonObject(with: r.body) as? [String: Any] {
+    check("avec la clé, le départ l'emporte", obj["start_url"] as? String == "/?k=" + key)
+} else { check("manifeste avec clé", false) }
+
+for name in ["/icon-180.png", "/icon-192.png", "/icon-512.png", "/favicon.png"] {
+    if let r = request(base + name) {
+        let png: [UInt8] = [0x89, 0x50, 0x4E, 0x47]
+        check("\(name) est une vraie image", r.status == 200
+              && r.body.count > 400 && Array(r.body.prefix(4)) == png,
+              "\(r.body.count) octets")
+    } else { check("\(name) répond", false) }
+}
 
 print("\n--- La clé est exigée ---")
 check("état refusé sans clé", request(base + "/api/state")?.status == 403)
@@ -94,6 +122,78 @@ check("avec son argument", received.first { $0.0 == "preset" }?.1["index"] as? I
 check("commande illisible rejetée",
       request(base + "/api/cmd?k=" + key, method: "POST", json: ["rien": 1])?.status == 400)
 check("chemin inconnu", request(base + "/api/inconnu?k=" + key)?.status == 404)
+
+print("\n--- Le flux temps réel ---")
+// On ouvre le flux, on publie pendant ce temps, et on compte les trames
+// reçues : c'est ce qui fait bouger le spectre sur la tablette.
+var frames: [[String: Any]] = []
+var streamStatus = 0
+var streamType = ""
+let publisher = Thread {
+    for i in 0..<60 {
+        let live: [String: Any] = ["rev": 1, "peakL": -20.0 + Double(i), "spectrum": "AAAA"]
+        server.publish(live: try! JSONSerialization.data(withJSONObject: live))
+        Thread.sleep(forTimeInterval: 0.04)
+    }
+}
+let streamed = DispatchSemaphore(value: 0)
+Task {
+    do {
+        var req = URLRequest(url: URL(string: base + "/api/stream?k=" + key)!)
+        req.timeoutInterval = 12
+        let (bytes, resp) = try await URLSession.shared.bytes(for: req)
+        if let http = resp as? HTTPURLResponse {
+            streamStatus = http.statusCode
+            streamType = http.value(forHTTPHeaderField: "Content-Type") ?? ""
+        }
+        publisher.start()
+        for try await line in bytes.lines {
+            guard line.hasPrefix("data: ") else { continue }
+            let payload = String(line.dropFirst(6))
+            if let obj = try? JSONSerialization.jsonObject(with: Data(payload.utf8)) as? [String: Any] {
+                frames.append(obj)
+            }
+            if frames.count >= 4 { break }
+        }
+    } catch { }
+    streamed.signal()
+}
+_ = streamed.wait(timeout: .now() + 14)
+check("le flux s'ouvre", streamStatus == 200, "réponse \(streamStatus)")
+check("annoncé comme un flux d'événements", streamType.contains("text/event-stream"), streamType)
+check("au moins quatre trames reçues", frames.count >= 4, "\(frames.count) trames")
+check("les trames portent l'instantané rapide",
+      frames.last?["spectrum"] as? String == "AAAA")
+check("les trames se suivent (ce n'est pas la même répétée)",
+      Set(frames.compactMap { $0["peakL"] as? Double }).count > 1,
+      frames.compactMap { $0["peakL"] as? Double }.map { String(format: "%.0f", $0) }.joined(separator: " "))
+
+if let r = request(base + "/api/live?k=" + key),
+   let obj = try? JSONSerialization.jsonObject(with: r.body) as? [String: Any] {
+    check("l'instantané rapide est aussi lisible d'un coup", obj["spectrum"] as? String == "AAAA")
+} else { check("/api/live lisible", false) }
+// Le serveur apprend la fermeture par la fin de flux TCP : on lui laisse
+// un instant pour en prendre acte.
+for _ in 0..<30 where server.streamCount > 0 { Thread.sleep(forTimeInterval: 0.05) }
+check("le flux est refermé quand la tablette s'en va",
+      server.streamCount == 0, "\(server.streamCount) encore ouvert(s)")
+
+print("\n--- Les nouvelles commandes ---")
+received.removeAll()
+for (action, args) in [("eqfreq", ["index": 3, "freq": 1200] as [String: Any]),
+                       ("eqq", ["index": 3, "q": 1.4]),
+                       ("eqenabled", ["index": 3, "on": false]),
+                       ("recordAudio", ["on": true]),
+                       ("tempo", ["value": 96]),
+                       ("checkUpdate", [:])] {
+    var body: [String: Any] = args
+    body["action"] = action
+    _ = request(base + "/api/cmd?k=" + key, method: "POST", json: body)
+}
+RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+for action in ["eqfreq", "eqq", "eqenabled", "recordAudio", "tempo", "checkUpdate"] {
+    check("« \(action) » arrive", received.contains { $0.0 == action })
+}
 
 print("\n--- Adresses proposées ---")
 let addrs = server.addresses

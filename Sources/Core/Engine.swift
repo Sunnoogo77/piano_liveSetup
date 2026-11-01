@@ -172,6 +172,13 @@ final class LiveEngine: @unchecked Sendable {
     private let peakPtr = UnsafeMutablePointer<Float>.allocate(capacity: 2)
     private let midiStampPtr = UnsafeMutablePointer<Double>.allocate(capacity: 1)
     private(set) var midiSourceNames: [String] = []
+    /// Nombre de changements de configuration MIDI reçus depuis le lancement.
+    /// Sert de preuve que la détection à chaud est bien branchée : si ce
+    /// compteur reste à zéro alors qu'on branche un clavier, c'est le client
+    /// qui n'écoute pas.
+    private(set) var midiNotifications = 0
+    private(set) var audioReady = false
+    private(set) var midiClientError: String?
     private(set) var midiDestinationName = "—"
     private(set) var audioDeviceLabel = "—"
     var onSetupChanged: (() -> Void)?
@@ -337,19 +344,83 @@ final class LiveEngine: @unchecked Sendable {
                              target.1, Int(sr), bufferFramesRunning,
                              Double(bufferFramesRunning) / sr * 1000)
         mic.chain.sampleRate = Float(sr)
+        audioReady = true
     }
 
-    /// À appeler depuis le thread principal : CoreMIDI délivre ses notifications
-    /// de branchement sur la run loop du thread qui a créé le client. Créé depuis
-    /// une tâche de fond, le client n'en reçoit aucune et le branchement à chaud
-    /// ne marche pas.
-    func startMIDI() {
-        assert(Thread.isMainThread, "startMIDI doit être appelé sur le thread principal")
-        MIDIClientCreateWithBlock("PianoLiveSetup" as CFString, &midiClient) { [weak self] notif in
+    /// Création du client CoreMIDI, **sur le thread MIDI**.
+    ///
+    /// CoreMIDI accroche sa source de notifications à la run loop du thread qui
+    /// crée le client, et ne livre rien tant que cette run loop ne tourne pas.
+    /// Or une run loop qu'on ne possède pas n'offre aucune garantie : dans
+    /// cette application, le client créé sur le thread principal ne recevait
+    /// jamais rien — la liste des appareils restait figée sur ce qu'elle était
+    /// au démarrage, pour toute la séance, sans la moindre erreur. (Le même
+    /// code dans un petit programme AppKit fonctionne ; la différence tient à
+    /// ce qui s'est passé sur ce thread avant.)
+    ///
+    /// Pire : la livraison est **par processus**. Si un autre morceau de code
+    /// (FluidSynth, un framework audio) crée un client CoreMIDI avant nous sur
+    /// un thread sans run loop, plus aucun client du processus ne reçoit quoi
+    /// que ce soit — et la liste des appareils se fige pour tout le monde.
+    /// Vérifié : un « squatteur » créé d'abord suffit à tout bloquer.
+    ///
+    /// D'où la règle : `startMIDI()` ouvre un thread à nous, y crée le client
+    /// **avant tout le reste**, et fait tourner sa run loop pour toujours.
+    func createMIDIClient() {
+        guard midiClient == 0 else { return }
+        var created = MIDIClientRef()
+        let status = MIDIClientCreateWithBlock("PianoLiveSetup" as CFString, &created) { [weak self] notif in
+            guard let self else { return }
+            self.midiNotifications += 1
             if notif.pointee.messageID == .msgSetupChanged {
-                DispatchQueue.main.async { self?.rescanMIDI() }
+                // La réception sur CE thread a déjà rafraîchi la vue que
+                // CoreMIDI donne au processus ; le balayage peut se faire
+                // tranquillement sur le thread principal.
+                DispatchQueue.main.async { self.rescanMIDI() }
             }
         }
+        if status == noErr {
+            midiClient = created
+            midiClientError = nil
+        } else {
+            midiClientError = "CoreMIDI a refusé le client (\(status))"
+        }
+    }
+
+    private var midiThread: Thread?
+
+    func startMIDI() {
+        assert(Thread.isMainThread, "startMIDI doit être appelé sur le thread principal")
+        guard midiThread == nil else { return }
+        let ready = DispatchSemaphore(value: 0)
+        let thread = Thread { [weak self] in
+            guard let self else { ready.signal(); return }
+            // Dans les toutes premières millisecondes du lancement, CoreMIDI
+            // refuse parfois un client. On réessaie brièvement plutôt que de
+            // rester sans détection pour toute la séance.
+            for attempt in 0..<8 where self.midiClient == 0 {
+                self.createMIDIClient()
+                if self.midiClient == 0 && attempt < 7 { Thread.sleep(forTimeInterval: 0.15) }
+            }
+            self.openMIDIPorts()
+            ready.signal()
+            // Sans source enregistrée, `run` rendrait la main immédiatement.
+            RunLoop.current.add(NSMachPort(), forMode: .default)
+            while !Thread.current.isCancelled {
+                RunLoop.current.run(mode: .default, before: .distantFuture)
+            }
+        }
+        thread.name = "piano.midi"
+        thread.qualityOfService = .userInitiated
+        midiThread = thread
+        thread.start()
+        ready.wait()                 // les ports existent avant le premier balayage
+        rescanMIDI()
+        installAudioWatcher()
+    }
+
+    private func openMIDIPorts() {
+        guard midiClient != 0 else { return }
         MIDIOutputPortCreate(midiClient, "out" as CFString, &midiOut)
         MIDIInputPortCreateWithProtocol(midiClient, "in" as CFString, ._1_0, &midiIn) { [weak self] evtList, _ in
             guard let self else { return }
@@ -375,8 +446,6 @@ final class LiveEngine: @unchecked Sendable {
                 pkt = MIDIEventPacketNext(&pkt).pointee
             }
         }
-        rescanMIDI()
-        installAudioWatcher()
     }
 
     /// La carte son d'un piano n'apparaît qu'à son allumage : on surveille aussi
@@ -396,6 +465,10 @@ final class LiveEngine: @unchecked Sendable {
     /// Si un clavier est branché et qu'il se présente aussi comme carte son,
     /// on y envoie le son — sauf si l'utilisateur a choisi une autre sortie.
     func followKeyboardIfPossible() {
+        // Tant que la sortie n'est pas ouverte, on ne bascule rien : une
+        // bascule pendant `startAudio()` ferait se marcher dessus deux
+        // ouvertures du même périphérique.
+        guard audioReady else { onSetupChanged?(); return }
         guard followKeyboardOutput, !midiSourceNames.isEmpty else { onSetupChanged?(); return }
         let outs = CA.outputDevices()
         for name in midiSourceNames {
@@ -405,8 +478,13 @@ final class LiveEngine: @unchecked Sendable {
                 return d.contains(key) || key.contains(d)
             }) else { continue }
             if match.1 != audioDeviceLabel {
-                if switchAudioDevice(named: match.1) {
-                    lastSwitchNote = "Sortie basculée sur « \(match.1) »"
+                let target = match.1
+                switchAudioDevice(named: target) { [weak self] ok in
+                    guard let self else { return }
+                    self.lastSwitchNote = ok
+                        ? "Sortie basculée sur « \(target) »"
+                        : "« \(target) » n'a pas répondu — la sortie n'a pas changé."
+                    self.onSetupChanged?()
                 }
             }
             break
@@ -427,6 +505,9 @@ final class LiveEngine: @unchecked Sendable {
     /// Se connecte à toutes les sources MIDI matérielles, quel que soit le fabricant,
     /// et retient la destination correspondante pour le Local Control.
     func rescanMIDI() {
+        // Le client naît avant les ports : si un clavier est branché dans cet
+        // intervalle, on laisse passer. startMIDI() fera le premier balayage.
+        guard midiIn != 0 else { return }
         let hadNoKeyboard = midiSourceNames.isEmpty
         var names: [String] = []
         for i in 0..<MIDIGetNumberOfSources() {
@@ -676,6 +757,7 @@ final class LiveEngine: @unchecked Sendable {
     func clearSwitchNote() { lastSwitchNote = nil }
     func setRemoteEnabled(_ on: Bool) { config.remoteEnabled = on }
     func setRemoteKey(_ k: String) { config.remoteKey = k }
+    func setCheckUpdates(_ on: Bool) { config.checkUpdates = on }
 
     var heldNotes: Int { noteLock.lock(); defer { noteLock.unlock() }; return sounding.count }
 
@@ -800,6 +882,30 @@ final class LiveEngine: @unchecked Sendable {
 
     // MARK: Changement de sortie audio en cours de route
 
+    /// Une bascule de sortie peut rester bloquée très longtemps : CoreAudio
+    /// n'a pas de délai d'attente, et un périphérique USB qui ne répond plus
+    /// fige `setDeviceID` indéfiniment. Appelée depuis le thread principal,
+    /// elle gèlerait toute l'application. On la fait donc toujours sur une
+    /// file à part ; l'interface, elle, reste vivante et peut le dire.
+    private let switchQueue = DispatchQueue(label: "piano.audio.switch", qos: .userInitiated)
+    private(set) var switchInFlight = false
+
+    func switchAudioDevice(named name: String,
+                           completion: @escaping @Sendable (Bool) -> Void) {
+        guard !switchInFlight else { completion(false); return }
+        switchInFlight = true
+        switchQueue.async { [weak self] in
+            guard let self else { return }
+            let ok = self.switchAudioDevice(named: name)
+            DispatchQueue.main.async {
+                self.switchInFlight = false
+                completion(ok)
+            }
+        }
+    }
+
+    /// Version bloquante. **À n'appeler que hors du thread principal** (ou
+    /// depuis un outil en ligne de commande, où c'est sans conséquence).
     func switchAudioDevice(named name: String) -> Bool {
         guard let target = CA.outputDevices().first(where: { $0.1 == name }) else { return false }
         panic()

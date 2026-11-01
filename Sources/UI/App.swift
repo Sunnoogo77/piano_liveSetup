@@ -1,6 +1,15 @@
 import SwiftUI
 import AppKit
 
+/// Trace de démarrage, sur la sortie d'erreur. Invisible quand on double-clique
+/// sur l'application ; précieuse quand on la lance depuis le Terminal pour
+/// comprendre pourquoi elle reste sur son écran de chargement :
+///
+///     "/Applications/Piano Live Setup.app/Contents/MacOS/PianoLiveSetup"
+func trace(_ text: String) {
+    FileHandle.standardError.write(Data(("[piano] " + text + "\n").utf8))
+}
+
 let configURL = URL(fileURLWithPath:
     AppPaths.configFile.path)
 
@@ -36,6 +45,8 @@ final class RigModel: ObservableObject {
     @Published var loadingLabel = "Préparation…"
     @Published var loadingProgress = 0.0
     @Published var fatalError: String?
+    /// Message affiché quand l'ouverture de la sortie audio ne répond plus.
+    @Published var bootHint: String?
 
     @Published var presetIndex = 0
     @Published var transpose: Int32 = 0
@@ -84,6 +95,10 @@ final class RigModel: ObservableObject {
     @Published var micSelectedBand = 2
     @Published var micPeakDB: Float = -60
     @Published var micMessage: String?
+    @Published var micAuth = MicPermission.status
+    /// Le périphérique est ouvert mais n'envoie que des zéros.
+    @Published var micSilent = false
+    private var micSilentSince: Date?
 
     // Contrôle à distance
     let remote = RemoteServer()
@@ -91,6 +106,13 @@ final class RigModel: ObservableObject {
     @Published var remoteAddresses: [String] = []
     @Published var remoteKey = ""
     @Published var remoteMessage: String?
+    @Published var remoteClients = 0
+
+    // Mises à jour
+    @Published var updateLatest: String?
+    @Published var updateNewer = false
+    @Published var updateChecking = false
+    @Published var updateMessage: String?
 
     @Published var peakDBL: Float = -60
     @Published var peakDBR: Float = -60
@@ -118,8 +140,14 @@ final class RigModel: ObservableObject {
 
     func boot() {
         AppPaths.ensure()
+        // CoreMIDI d'abord, avant que quoi que ce soit d'autre n'y touche :
+        // le premier client du processus décide où les notifications sont
+        // livrées. Voir createMIDIClient().
+        engine.startMIDI()
+        trace("démarrage — MIDI en place\(engine.midiClientError.map { " : " + $0 } ?? "")")
         Task.detached(priority: .userInitiated) { [engine] in
             do {
+                trace("chargement des banques…")
                 try engine.loadBanks { file, i, total in
                     Task { @MainActor [weak self] in
                         self?.loadingProgress = Double(i) / Double(max(total, 1))
@@ -127,15 +155,39 @@ final class RigModel: ObservableObject {
                             : "Chargement · \(file.replacingOccurrences(of: ".sf2", with: "").replacingOccurrences(of: ".sf3", with: ""))"
                     }
                 }
+                trace("banques chargées — ouverture de l'audio")
+                await MainActor.run { [weak self] in self?.armAudioWatchdog() }
                 try engine.startAudio()
-                // startMIDI doit être sur le thread principal : voir son commentaire.
+                trace("audio ouvert : \(engine.statusAudio)")
                 await MainActor.run { [weak self] in
-                    engine.startMIDI()
+                    // L'audio est ouvert : on peut enfin suivre le clavier.
+                    engine.followKeyboardIfPossible()
+                    trace("MIDI prêt : \(engine.midiSourceNames.joined(separator: ", "))")
+                    self?.bootHint = nil
                     self?.finishBoot()
+                    trace("démarrage terminé")
                 }
             } catch {
+                trace("ÉCHEC : \(error.localizedDescription)")
                 await MainActor.run { [weak self] in self?.fatalError = error.localizedDescription }
             }
+        }
+    }
+
+    /// CoreAudio peut rester bloqué indéfiniment sur `setDeviceID` quand le
+    /// périphérique visé ne répond plus — un piano USB dont la carte son s'est
+    /// vexée, par exemple. L'appel n'est pas annulable : on ne peut pas le
+    /// rattraper, mais on peut au moins cesser de laisser l'utilisateur devant
+    /// un écran de chargement muet.
+    private func armAudioWatchdog() {
+        let target = engine.config.audioDeviceName
+        let named = target.isEmpty ? "la sortie choisie" : "« \(target) »"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 9) { [weak self] in
+            guard let self, !self.ready, self.fatalError == nil else { return }
+            self.bootHint = "\(named) ne répond pas. Éteignez puis rallumez "
+                + "l'instrument, ou débranchez et rebranchez son câble USB : "
+                + "le démarrage reprendra tout seul."
+            trace("la sortie audio ne répond pas depuis 9 s")
         }
     }
 
@@ -155,6 +207,13 @@ final class RigModel: ObservableObject {
             MainActor.assumeIsolated { self?.handleRemote(action, args) }
         }
         if engine.config.remoteEnabled { toggleRemote() }
+        if engine.config.checkUpdates {
+            // Quelques secondes après le démarrage : on ne retarde pas le son
+            // pour une question de version.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
+                self?.checkForUpdate()
+            }
+        }
         engine.onSetupChanged = { [weak self] in
             MainActor.assumeIsolated {
                 guard let self else { return }
@@ -204,8 +263,31 @@ final class RigModel: ObservableObject {
             recSeconds = engine.recordedSeconds
             recNotes = engine.recordedNoteCount
         }
-        if micOn { micPeakDB = engine.mic.inputPeak > 0 ? 20 * log10(engine.mic.inputPeak) : -60 }
-        if remoteOn { publishRemoteState() }
+        if micOn { watchMic() }
+        if remoteOn { publishRemote() }
+    }
+
+    /// Un périphérique peut s'ouvrir sans rien envoyer : autorisation refusée,
+    /// mauvaise entrée, iPhone verrouillé. Plutôt que de laisser croire que
+    /// tout va bien, on le dit au bout de deux secondes et demie.
+    private func watchMic() {
+        let peak = engine.mic.inputPeak
+        micPeakDB = peak > 0 ? 20 * log10(peak) : -60
+        if peak > 0.00005 {
+            micSilentSince = nil
+            if micSilent { micSilent = false; micMessage = nil; refreshRemoteSlow(force: true) }
+            return
+        }
+        guard !micSilent, let since = micSilentSince,
+              Date().timeIntervalSince(since) > 2.5 else { return }
+        micSilent = true
+        let who = engine.mic.deviceName
+        micMessage = micAuth == .authorized
+            ? "« \(who) » est ouvert mais n'envoie rien. Vérifiez que c'est la bonne "
+              + "entrée et qu'elle n'est pas coupée — pour un iPhone, qu'il est "
+              + "déverrouillé, à proximité, et qu'il ne sert pas déjà ailleurs."
+            : "« \(who) » n'envoie rien : micro \(micAuth.human). \(MicPermission.settingsHint)"
+        refreshRemoteSlow(force: true)
     }
 
     // MARK: Contrôle à distance
@@ -231,7 +313,8 @@ final class RigModel: ObservableObject {
             engine.setRemoteKey(remote.token)
             save()                       // la clé survit même à un arrêt brutal
             publishRemoteLibrary()
-            publishRemoteState()
+            refreshRemoteSlow(force: true)
+            publishRemote()
         }
     }
 
@@ -241,26 +324,130 @@ final class RigModel: ObservableObject {
         if let d = try? JSONSerialization.data(withJSONObject: list) { remote.publish(library: d) }
     }
 
-    private func publishRemoteState() {
+    // L'état part en deux morceaux. Ce qui bouge à chaque image passe par le
+    // flux ; ce qui change rarement n'est republié que lorsqu'il a vraiment
+    // changé, et la page le relit alors d'elle-même grâce au numéro de
+    // révision. C'est ce qui permet d'avoir un spectre fluide sans inonder
+    // le réseau de listes de sons.
+
+    private var remoteRev = 0
+    private var remoteSlowBody = Data()
+    private var remoteTicks = 0
+
+    private func publishRemote() {
+        remoteTicks += 1
+        if remoteTicks % 8 == 0 { refreshRemoteSlow() }
+
+        // L'analyseur n'est calculé que par celui qui le regarde : c'est la
+        // vue de l'écran Égaliseur qui appelle `analyse()`. Quand cet écran
+        // n'est pas affiché sur le Mac, personne ne le fait — et la tablette
+        // recevrait un spectre plat. On le réveille donc ici, mais seulement
+        // s'il y a quelqu'un au bout du fil.
+        if tab != .eq, remote.streamCount > 0 || remote.clientCount > 0 {
+            engine.spectrum.analyse()
+        }
+
+        let live: [String: Any] = [
+            "rev": remoteRev,
+            "presetIndex": presetIndex,
+            "transpose": Int(transpose), "octave": Int(octave),
+            "master": master, "layerMix": layerMix,
+            "peakL": peakDBL, "peakR": peakDBR, "holdL": holdL, "holdR": holdR,
+            "chord": chord.symbol, "chordQuality": chord.quality,
+            "chordNotes": chord.noteNames.joined(separator: " "),
+            "chordDegrees": chord.degrees.joined(separator: " · "),
+            "sounding": sounding, "held": held, "midiLive": midiLive,
+            "hasKeyboard": hasKeyboard,
+            "recording": isRecording, "recSeconds": Int(recSeconds), "recNotes": recNotes,
+            "micPeak": micOn ? micPeakDB : -120,
+            "history": chordHistory.prefix(14).map { $0.symbol },
+            "spectrum": spectrumPayload(),
+        ]
+        if let d = try? JSONSerialization.data(withJSONObject: live) { remote.publish(live: d) }
+        let n = remote.streamCount
+        if n != remoteClients { remoteClients = n }
+    }
+
+    /// Les 128 bandes de l'analyseur, un octet par bande : −72 dB → 0,
+    /// 0 dB → 255. 128 octets, soit 172 caractères, par image.
+    private func spectrumPayload() -> String {
+        let bands = engine.spectrum.bandsDB
+        var bytes = [UInt8](repeating: 0, count: bands.count)
+        for i in bands.indices {
+            let v = (max(-72, min(0, bands[i])) + 72) / 72 * 255
+            bytes[i] = UInt8(max(0, min(255, v.rounded())))
+        }
+        return Data(bytes).base64EncodedString()
+    }
+
+    private func refreshRemoteSlow(force: Bool = false) {
+        guard remoteOn else { return }
         let p = preset
         let splitPoint = (p.category == .split && p.layers.count > 1) ? Int(p.layers[1].loKey) : 60
         let eqList: [[String: Any]] = bands.map {
-            ["label": $0.label, "freq": $0.freq, "gain": $0.gain, "gainUsed": $0.kind.usesGain]
+            ["label": $0.label, "kind": $0.kind.tag, "freq": $0.freq,
+             "gain": $0.gain, "q": $0.q, "enabled": $0.enabled,
+             "usesGain": $0.kind.usesGain]
         }
-        let state: [String: Any] = [
-            "preset": p.name, "category": p.category.rawValue, "presetIndex": presetIndex,
-            "transpose": Int(transpose), "octave": Int(octave),
-            "master": master, "layerMix": layerMix, "hasLayer": p.hasSecondLayer,
-            "chord": chord.symbol, "chordQuality": chord.quality,
-            "sounding": sounding, "split": splitPoint,
-            "peakL": peakDBL, "peakR": peakDBR,
-            "hasKeyboard": hasKeyboard, "recording": isRecording,
-            "recSeconds": Int(recSeconds), "eq": eqList,
+        let takeList: [[String: Any]] = takes.prefix(12).map {
+            ["id": $0.id, "name": $0.name, "seconds": Int($0.duration),
+             "notes": $0.noteCount, "audio": $0.hasAudio,
+             "preset": $0.preset, "tempo": Int($0.tempo),
+             "when": Self.remoteDateFormatter.string(from: $0.date)]
+        }
+        var slow: [String: Any] = [
+            "preset": p.name, "subtitle": p.subtitle, "category": p.category.rawValue,
+            "presetIndex": presetIndex, "hasLayer": p.hasSecondLayer, "split": splitPoint,
+            "eq": eqList,
+            "fx": ["drive": drive, "tremRate": tremRate, "tremDepth": tremDepth, "comp": comp],
+            "takes": takeList, "recordAudio": recordAudio, "tempo": Int(tempo),
+            "keyboards": engine.midiSourceNames,
+            "midiEvents": engine.midiNotifications,
+            "midiError": engine.midiClientError ?? "",
+            "output": engine.audioDeviceLabel, "audioStatus": engine.statusAudio,
+            "version": AppInfo.version, "commit": AppInfo.commit, "repo": AppInfo.repoURL,
+            "micOn": micOn,
+            "mic": [
+                "on": micOn, "auth": micAuth.rawValue, "authText": micAuth.human,
+                "device": engine.mic.deviceName, "deviceID": Int(micDeviceID),
+                "devices": micDevices.map { ["id": Int($0.id), "name": $0.name] },
+                "gain": micGain, "comp": micComp,
+                "monitoring": micMonitoring, "silent": micSilent,
+                "message": micMessage ?? "",
+                "bands": micBands.map {
+                    ["label": $0.label, "kind": $0.kind.tag, "freq": $0.freq,
+                     "gain": $0.gain, "q": $0.q, "enabled": $0.enabled,
+                     "usesGain": $0.kind.usesGain]
+                },
+            ],
         ]
-        if let d = try? JSONSerialization.data(withJSONObject: state) { remote.publish(state: d) }
+        if let latest = updateLatest {
+            slow["update"] = ["latest": latest, "newer": updateNewer]
+        }
+        if let msg = updateMessage { slow["updateMessage"] = msg }
+
+        guard let body = try? JSONSerialization.data(withJSONObject: slow,
+                                                     options: [.sortedKeys]) else { return }
+        guard force || body != remoteSlowBody else { return }
+        remoteSlowBody = body
+        remoteRev += 1
+        slow["rev"] = remoteRev
+        if let d = try? JSONSerialization.data(withJSONObject: slow) { remote.publish(state: d) }
     }
 
+    private static let remoteDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "fr_FR")
+        f.dateFormat = "d MMM, HH'h'mm"
+        return f
+    }()
+
     private func handleRemote(_ action: String, _ args: [String: Any]) {
+        func number(_ key: String) -> Float? {
+            if let d = args[key] as? Double { return Float(d) }
+            if let i = args[key] as? Int { return Float(i) }
+            return nil
+        }
         switch action {
         case "preset":
             if let i = args["index"] as? Int { select(i) }
@@ -270,20 +457,96 @@ final class RigModel: ObservableObject {
         case "octave":
             if let d = args["delta"] as? Int { nudgeOctave(Int32(d)) }
         case "master":
-            if let v = args["value"] as? Double { setMaster(Float(v)) }
+            if let v = number("value") { setMaster(v) }
         case "layer":
-            if let v = args["value"] as? Double { setLayer(Float(v)) }
+            if let v = number("value") { setLayer(v) }
         case "panic": panic()
         case "record": toggleRecording()
+        case "recordAudio":
+            if let on = args["on"] as? Bool { recordAudio = on }
+        case "tempo":
+            if let v = number("value") { tempo = Double(min(240, max(30, v))) }
         case "eqband":
-            if let i = args["index"] as? Int, let g = args["gain"] as? Double,
+            if let i = args["index"] as? Int, let g = number("gain"), bands.indices.contains(i) {
+                bands[i].gain = min(18, max(-18, g)); commitBand(i)
+            }
+        case "eqfreq":
+            if let i = args["index"] as? Int, let f = number("freq"), bands.indices.contains(i) {
+                bands[i].freq = min(20000, max(20, f)); commitBand(i)
+            }
+        case "eqq":
+            if let i = args["index"] as? Int, let q = number("q"), bands.indices.contains(i) {
+                bands[i].q = min(12, max(0.2, q)); commitBand(i)
+            }
+        case "eqenabled":
+            if let i = args["index"] as? Int, let on = args["on"] as? Bool,
                bands.indices.contains(i) {
-                bands[i].gain = Float(g); commitBand(i)
+                bands[i].enabled = on; commitBand(i)
             }
         case "eqreset": resetEQ()
+        case "fx":
+            if let v = number("drive") { setDrive(v) }
+            if let v = number("comp") { setComp(v) }
+            if let v = number("tremDepth") { setTrem(rate: tremRate > 0.1 ? tremRate : 5.2, depth: v) }
+            if let v = number("tremRate") { setTrem(rate: v, depth: tremDepth) }
+        case "mic": toggleMic()
+        case "micGain":
+            if let v = number("value") { setMicGain(min(2, max(0, v))) }
+        case "micComp":
+            if let v = number("value") { setMicComp(min(1, max(0, v))) }
+        case "micMonitor":
+            if let on = args["on"] as? Bool {
+                setMicMonitoring(on)
+                if on, micOn, micMessage?.hasPrefix("Micro ouvert") == true { micMessage = nil }
+            }
+        case "micDevice":
+            if let id = args["id"] as? Int { chooseMicDevice(UInt32(id)) }
+        case "micBand":
+            if let i = args["index"] as? Int, let g = number("gain"),
+               micBands.indices.contains(i) {
+                micBands[i].gain = min(18, max(-18, g)); commitMicBands()
+            }
+        case "micFreq":
+            if let i = args["index"] as? Int, let f = number("freq"),
+               micBands.indices.contains(i) {
+                micBands[i].freq = min(20000, max(20, f)); commitMicBands()
+            }
+        case "micReset": resetMicEQ()
+        case "micRescan": refreshDevices()
+        case "checkUpdate": checkForUpdate(manual: true)
+        case "selectKeyboard": engine.rescanMIDI()
         default: break
         }
-        publishRemoteState()
+        refreshRemoteSlow(force: true)
+        publishRemote()
+    }
+
+    // MARK: Mises à jour
+
+    /// Demande à GitHub le numéro de la dernière version publiée. Rien n'est
+    /// téléchargé ni installé : c'est à vous de lancer la mise à jour.
+    func checkForUpdate(manual: Bool = false) {
+        guard !updateChecking else { return }
+        updateChecking = true
+        if manual { updateMessage = "Vérification…" }
+        UpdateCheck.run { [weak self] result in
+            Task { @MainActor in
+                guard let self else { return }
+                self.updateChecking = false
+                switch result {
+                case .success(let o):
+                    self.updateLatest = o.latest
+                    self.updateNewer = o.isNewer
+                    self.updateMessage = o.isNewer
+                        ? "La version \(o.latest) est disponible."
+                        : (manual ? "Vous avez la dernière version." : nil)
+                case .failure(let e):
+                    self.updateNewer = false
+                    self.updateMessage = manual ? e.description : nil
+                }
+                self.refreshRemoteSlow(force: true)
+            }
+        }
     }
 
     // MARK: Enregistrement
@@ -322,6 +585,25 @@ final class RigModel: ObservableObject {
 
     func openFile(_ url: URL) { NSWorkspace.shared.open(url) }
 
+    /// Ouvre directement le volet Microphone des réglages de confidentialité.
+    func openMicSettings() {
+        if let u = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
+            NSWorkspace.shared.open(u)
+        }
+    }
+
+    func refreshMicAuth() { micAuth = MicPermission.status }
+
+    func copyUpdateCommand() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(UpdateCheck.command, forType: .string)
+        updateMessage = "Commande copiée — collez-la dans le Terminal."
+    }
+
+    func openRepo() {
+        if let u = URL(string: AppInfo.repoURL) { NSWorkspace.shared.open(u) }
+    }
+
     // MARK: Périphériques
 
     func engineClearSwitchNote() { engine.clearSwitchNote() }
@@ -339,11 +621,18 @@ final class RigModel: ObservableObject {
     }
 
     func chooseAudioDevice(_ name: String) {
-        if engine.switchAudioDevice(named: name) {
-            micMessage = nil
-            objectWillChange.send()
-        } else {
-            micMessage = "Impossible de basculer sur « \(name) »."
+        guard !engine.switchInFlight else { return }
+        deviceNote = "Bascule vers « \(name) »…"
+        objectWillChange.send()
+        engine.switchAudioDevice(named: name) { [weak self] ok in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.deviceNote = ok ? nil
+                    : "« \(name) » n'a pas répondu. Éteignez puis rallumez l'appareil, "
+                      + "ou débranchez et rebranchez son câble."
+                self.refreshDevices()
+                self.objectWillChange.send()
+            }
         }
     }
 
@@ -352,19 +641,56 @@ final class RigModel: ObservableObject {
             engine.stopMic(); micOn = false; micMonitoring = false
             engine.mic.monitoring = false
             micPeakDB = -60
-        } else {
-            guard micDeviceID != 0 else { micMessage = "Aucune entrée disponible."; return }
-            if engine.startMic(deviceID: micDeviceID) {
-                micOn = true
-                engine.mic.gain = micGain
-                engine.mic.chain.compAmount = micComp
-                engine.mic.chain.updateEQ(micBands)
-                engine.mic.monitoring = micMonitoring
-                micMessage = nil
-            } else {
-                micMessage = engine.mic.lastError ?? "Entrée refusée."
-            }
+            micSilent = false; micSilentSince = nil
+            micMessage = nil
+            refreshRemoteSlow(force: true)
+            return
         }
+        guard micDeviceID != 0 else { micMessage = "Aucune entrée disponible."; return }
+        micAuth = MicPermission.status
+        switch micAuth {
+        case .authorized:
+            startMicNow()
+        case .undetermined:
+            micMessage = "macOS va demander l'autorisation du micro — répondez à sa fenêtre."
+            MicPermission.request { [weak self] st in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.micAuth = st
+                    if st == .authorized { self.startMicNow() }
+                    else { self.micMessage = "Micro \(st.human). \(MicPermission.settingsHint)" }
+                    self.refreshRemoteSlow(force: true)
+                }
+            }
+        case .denied, .restricted:
+            micMessage = "Micro \(micAuth.human). \(MicPermission.settingsHint)"
+        }
+        refreshRemoteSlow(force: true)
+    }
+
+    private func startMicNow() {
+        guard engine.startMic(deviceID: micDeviceID) else {
+            micMessage = engine.mic.lastError ?? "Entrée refusée."
+            return
+        }
+        micOn = true
+        engine.mic.gain = micGain
+        engine.mic.chain.compAmount = micComp
+        engine.mic.chain.updateEQ(micBands)
+        engine.mic.monitoring = micMonitoring
+        micSilent = false
+        micSilentSince = Date()
+        micMessage = micMonitoring ? nil
+            : "Micro ouvert, mais l'écoute est coupée : rien ne sort encore."
+        refreshRemoteSlow(force: true)
+    }
+
+    func chooseMicDevice(_ id: UInt32) {
+        let wasOn = micOn
+        if micOn { toggleMic() }
+        micDeviceID = id
+        if wasOn { toggleMic() }
+        refreshRemoteSlow(force: true)
     }
 
     func setMicGain(_ v: Float) { micGain = v; engine.mic.gain = v }
@@ -421,6 +747,12 @@ final class RigModel: ObservableObject {
         let enc = JSONEncoder(); enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         try? enc.encode(cfg).write(to: configURL)
     }
+    func setCheckUpdates(_ on: Bool) {
+        engine.setCheckUpdates(on)
+        objectWillChange.send()
+        save()
+    }
+
     func shutdown() { remote.stop(); save(); engine.shutdown() }
 }
 
@@ -445,6 +777,15 @@ struct BootView: View {
             if let e = m.fatalError {
                 Text(e).font(.system(size: 12)).foregroundStyle(Tone.hot)
                     .multilineTextAlignment(.center).padding(.horizontal, 40)
+            } else if let hint = m.bootHint {
+                VStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 16)).foregroundStyle(Tone.warn)
+                    Text(hint).font(.system(size: 12)).foregroundStyle(Tone.warn)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 46)
             } else {
                 VStack(spacing: 9) {
                     GeometryReader { g in

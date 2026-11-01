@@ -28,6 +28,26 @@ jobs:
       - name: Contrôle à distance
         run: build/bin/remotetest
 
+      - name: Numéros de version
+        run: build/bin/versiontest
+
+      - name: La page de commande est complète
+        run: |
+          python3 - <<'PY'
+          import re, pathlib, sys
+          gen = pathlib.Path('build/gen/WebAssets.swift').read_text(encoding='utf-8')
+          attendus = ['s-play', 's-eq', 's-chords', 's-keys', 's-rec', 's-info',
+                      'eqcanvas', 'micpanel', 'manifest.webmanifest',
+                      'function paintEQ', '--accent:#4FD1C5']
+          manquants = [a for a in attendus if a not in gen]
+          if manquants:
+              print('absent de la page :', ', '.join(manquants)); sys.exit(1)
+          for nom in ('icon180', 'icon192', 'icon512'):
+              if nom not in gen:
+                  print('icône manquante :', nom); sys.exit(1)
+          print(f'page complète ({len(gen) // 1024} Ko embarqués)')
+          PY
+
       - name: Le cœur doit compiler sans framework Apple
         run: make portable
 

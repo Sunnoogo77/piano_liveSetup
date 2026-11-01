@@ -11,8 +11,11 @@ echo
 echo "── Formats d'enregistrement ──────────────────────────"
 build/bin/rectest | tail -4
 echo
+echo "── Numéros de version ────────────────────────────────"
+build/bin/versiontest | tail -3
+echo
 echo "── Contrôle à distance ───────────────────────────────"
-build/bin/remotetest | tail -5
+build/bin/remotetest | tail -4
 echo
 echo "── Le cœur compile sans framework Apple ──────────────"
 if swiftc -swift-version 5 -typecheck -DPLS_PORTABLE \

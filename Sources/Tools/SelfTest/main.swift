@@ -256,7 +256,8 @@ check("prise créée", meta != nil)
 if let meta {
     let dir = TakeStore.folder(meta.id)
     func size(_ f: String) -> Int {
-        (try? FileManager.default.attributesOfItem(atPath: dir.appendingPathComponent(f).path)[.size] as? Int) as? Int ?? 0
+        ((try? FileManager.default.attributesOfItem(
+            atPath: dir.appendingPathComponent(f).path))?[.size] as? Int) ?? 0
     }
     // Le clavier est branché : s'il est touché pendant le test, ses notes entrent
     // aussi dans la prise. On vérifie donc que la cadence est bien là, pas que
