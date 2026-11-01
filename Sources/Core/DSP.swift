@@ -377,6 +377,25 @@ final class SpectrumTap: @unchecked Sendable {
         writeIndex.pointee = w
     }
 
+    /// Variante mono, un échantillon à la fois : l'entrée micro démultiplexe
+    /// déjà ses voies une par une, elle n'a pas de bloc stéréo à donner.
+    @inline(__always)
+    func push(_ v: Float) {
+        var w = writeIndex.pointee
+        buffer[w] = v
+        w += 1
+        if w >= capacity { w = 0 }
+        writeIndex.pointee = w
+    }
+
+    /// Remet l'analyseur au silence. Sans cela, une entrée qu'on vient de
+    /// fermer continuerait d'afficher sa dernière image, figée.
+    func reset() {
+        buffer.update(repeating: 0, count: capacity)
+        writeIndex.pointee = 0
+        for i in 0..<bandCount { bandsDB[i] = -100; peaksDB[i] = -100 }
+    }
+
     /// Fréquence dominante dans une plage, affinée par interpolation parabolique
     /// sur les bins voisins. Sert à vérifier que la transposition décale bien la hauteur.
     func dominantFrequency(between lo: Float, and hi: Float) -> Float {

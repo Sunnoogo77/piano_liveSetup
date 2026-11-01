@@ -6,62 +6,38 @@ import AppKit
 struct SidebarView: View {
     @ObservedObject var m: RigModel
 
+    init(m: RigModel, closed: Set<Category> = []) {
+        self.m = m
+        _closed = State(initialValue: closed)
+    }
+
+    /// Familles refermées. Les sons se comptent par dizaines : une liste
+    /// entièrement dépliée se parcourt au défilement, et on cherche son son
+    /// au lieu de le choisir. Tout est ouvert au départ ; ce qu'on referme
+    /// reste refermé le temps de la séance.
+    @State private var closed: Set<Category> = []
+
+    private var searching: Bool { !m.search.isEmpty }
+
     var body: some View {
         VStack(spacing: 0) {
-            // Recherche
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 11, weight: .medium)).foregroundStyle(Tone.txt2)
-                TextField("Rechercher un son", text: $m.search)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Tone.txt0)
-                if !m.search.isEmpty {
-                    Button { m.search = "" } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 11)).foregroundStyle(Tone.txt2)
-                    }.buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 12).padding(.vertical, 8)
-            .background(Tone.bg2, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 8)
-
-            // Familles
-            Scroll(axis: .horizontal) {
-                HStack(spacing: 6) {
-                    chip(nil, "Tout")
-                    ForEach(Category.allCases, id: \.self) { c in
-                        chip(c, c.short)
-                    }
-                }
-                .padding(.horizontal, 12)
-            }
-            .padding(.bottom, 8)
-
+            searchField
+            listHeader
             Divider().overlay(Tone.line)
-
             Scroll {
-                VStack(spacing: 2) {
+                LazyVStack(spacing: 2, pinnedViews: [.sectionHeaders]) {
                     ForEach(groupedCategories, id: \.self) { cat in
                         Section {
-                            ForEach(rows(in: cat), id: \.offset) { item in
-                                PresetRow(preset: item.element,
-                                          isActive: item.offset == m.presetIndex) {
-                                    m.select(item.offset)
+                            if !isClosed(cat) {
+                                ForEach(rows(in: cat), id: \.offset) { item in
+                                    PresetRow(preset: item.element,
+                                              isActive: item.offset == m.presetIndex) {
+                                        m.select(item.offset)
+                                    }
                                 }
                             }
                         } header: {
-                            HStack(spacing: 8) {
-                                Image(systemName: cat.symbol)
-                                    .font(.system(size: 11, weight: .regular))
-                                    .frame(width: 14)
-                                Caption(text: cat.rawValue)
-                                Spacer()
-                            }
-                            .foregroundStyle(Tone.txt2)
-                            .padding(.horizontal, 12).padding(.top, 20).padding(.bottom, 8)
-                            .background(Tone.bg1)
+                            familyHeader(cat)
                         }
                     }
                 }
@@ -71,27 +47,96 @@ struct SidebarView: View {
         .background(Tone.bg1)
     }
 
+    // MARK: Recherche
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 11, weight: .medium)).foregroundStyle(Tone.txt2)
+            TextField("Rechercher un son", text: $m.search)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .foregroundStyle(Tone.txt0)
+            if searching {
+                Button { m.search = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 11)).foregroundStyle(Tone.txt2)
+                }.buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 12).frame(height: Metric.row)
+        .background(Tone.bg2, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 8)
+    }
+
+    /// Le compte des sons et, à droite, de quoi tout replier d'un coup : avec
+    /// toutes les familles fermées, la barre devient un sommaire de dix lignes.
+    private var listHeader: some View {
+        HStack(spacing: 8) {
+            Text(searching ? "\(m.filtered.count) sur \(m.presets.count)"
+                           : "\(m.presets.count) sons")
+                .font(.value(11)).foregroundStyle(Tone.txt2)
+            Spacer(minLength: 4)
+            if !searching {
+                Button {
+                    closed = closed.isEmpty ? Set(groupedCategories) : []
+                } label: {
+                    Text(closed.isEmpty ? "Tout replier" : "Tout déplier")
+                        .font(.label()).foregroundStyle(Tone.txt1)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 12).padding(.bottom, 8)
+    }
+
+    // MARK: Familles
+
+    private func familyHeader(_ cat: Category) -> some View {
+        let shut = isClosed(cat)
+        return Button {
+            if shut { closed.remove(cat) } else { closed.insert(cat) }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: shut ? "chevron.right" : "chevron.down")
+                    .font(.system(size: 9, weight: .medium))
+                    .frame(width: 10)
+                Image(systemName: cat.symbol)
+                    .font(.system(size: 11, weight: .regular))
+                    .frame(width: 14)
+                Caption(text: cat.rawValue)
+                Spacer(minLength: 4)
+                Text("\(rows(in: cat).count)")
+                    .font(.value(11)).foregroundStyle(Tone.txt2)
+                // Le son qui joue est quelque part dans cette famille : on le
+                // dit sur l'en-tête, pour qu'une famille refermée ne cache pas
+                // le son en cours.
+                if holdsCurrent(cat) {
+                    Circle().fill(Tone.accent).frame(width: 4, height: 4)
+                }
+            }
+            .foregroundStyle(Tone.txt2)
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Tone.bg1)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(shut ? "Déplier \(cat.rawValue)" : "Replier \(cat.rawValue)")
+    }
+
+    private func isClosed(_ c: Category) -> Bool { !searching && closed.contains(c) }
+
+    private func holdsCurrent(_ c: Category) -> Bool {
+        m.presets.indices.contains(m.presetIndex) && m.presets[m.presetIndex].category == c
+    }
+
     private var groupedCategories: [Category] {
         let present = Set(m.filtered.map { $0.element.category })
         return Category.allCases.filter { present.contains($0) }
     }
     private func rows(in c: Category) -> [(offset: Int, element: Preset)] {
         m.filtered.filter { $0.element.category == c }
-    }
-
-    private func chip(_ c: Category?, _ label: String) -> some View {
-        let on = m.categoryFilter == c
-        return Button { m.categoryFilter = on ? nil : c } label: {
-            Text(label)
-                .font(.system(size: 12, weight: .regular))
-                .padding(.horizontal, 12).frame(height: 24)
-                .background(on ? Tone.accentDim : Tone.bg2,
-                            in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .strokeBorder(on ? Tone.accent.opacity(0.55) : .clear, lineWidth: 1))
-                .foregroundStyle(on ? Tone.accent : Tone.txt1)
-        }
-        .buttonStyle(.plain)
     }
 }
 
@@ -152,8 +197,8 @@ struct StageView: View {
         case .eq:      eqScreen(width: width)
         case .chords:  ChordScreen(m: m)
         case .keys:    KeyboardScreen(m: m)
-        case .record:  RecordScreen(m: m)
-        case .devices: DevicesScreen(m: m)
+        case .record:  RecordScreen(m: m, width: width)
+        case .devices: DevicesScreen(m: m, width: width)
         }
     }
 
@@ -162,7 +207,8 @@ struct StageView: View {
     private func eqScreen(width: CGFloat) -> some View {
         let wide = width >= 1060
         return VStack(spacing: Metric.gap) {
-            AnalyzerView(engine: m.engine, bands: $m.bands, selected: $m.selectedBand) { i, _ in
+            AnalyzerView(tap: m.engine.spectrum, chain: m.engine.chain,
+                         bands: $m.bands, selected: $m.selectedBand) { i, _ in
                 m.commitBand(i)
             }
             .frame(minHeight: 170, maxHeight: 430)

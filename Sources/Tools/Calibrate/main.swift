@@ -52,7 +52,7 @@ print("")
 
 var config: RigConfig
 if let d = FileManager.default.contents(atPath: configPath),
-   let c = try? JSONDecoder().decode(RigConfig.self, from: d), c.presets.count == Library.all().count {
+   let c = try? JSONDecoder().decode(RigConfig.self, from: d), !c.presets.isEmpty {
     config = c
     print("Configuration existante rechargée (réglages conservés).\n")
 } else {
@@ -155,17 +155,44 @@ for p in config.presets {
 let ceiling: Float = pow(10, -headroomDB / 20)
 let valid = measures.compactMap { $0 }
 guard !valid.isEmpty else { print("\nAucun preset mesurable."); exit(1) }
-let targetRMS = valid.map { $0.rms * (ceiling / $0.peak) }.min()!
+
+// Sonie commune. Pour chaque son, la sonie qu'il pourrait atteindre sans que
+// sa crête dépasse le plafond ; la cible est prise parmi les plus basses,
+// mais pas la plus basse.
+//
+// Prendre le minimum revient à laisser un seul son décider du niveau de toute
+// la bibliothèque : une kalimba, un pizzicato — une attaque sèche suivie de
+// presque rien — ont une crête haute et une sonie très basse, et elles
+// tiraient tout le reste douze décibels plus bas. Le huitième le plus bas
+// redonne la cible qu'on avait avant l'arrivée de ces familles.
+let reachable = valid.map { $0.rms * (ceiling / $0.peak) }.sorted()
+let targetRMS = reachable[reachable.count / 8]
 
 print(String(format: "\nSonie cible : %@ dB RMS, plafond de crête %@ dB\n", db(targetRMS), db(ceiling)))
 var worstPeak: Float = 0
+var limited: [(String, Float)] = []
 for i in config.presets.indices {
     guard let m = measures[i] else { config.presets[i].gain = 1; continue }
-    let g = targetRMS / m.rms
+    // Le plafond de crête l'emporte sur la sonie commune : un son qui ne peut
+    // pas l'atteindre sans écrêter reste en dessous, et on le dit.
+    let wanted = targetRMS / m.rms
+    let allowed = ceiling / m.peak
+    let g = min(wanted, allowed)
+    if allowed < wanted * 0.9 {
+        limited.append((config.presets[i].name, 20 * log10(allowed / wanted)))
+    }
     config.presets[i].gain = g
     worstPeak = max(worstPeak, m.peak * g)
 }
 print(String(format: "Pire crête après étalonnage : %@ dB", db(worstPeak)))
+if limited.isEmpty {
+    print("Tous les sons atteignent la sonie commune.")
+} else {
+    print("Bridés par leur crête, sous la sonie commune :")
+    for (name, d) in limited.sorted(by: { $0.1 < $1.1 }) {
+        print(String(format: "  %-20s %+.1f dB", (name as NSString).utf8String!, d))
+    }
+}
 print("Presets en échec : \(failures.isEmpty ? "aucun" : failures.joined(separator: ", "))")
 
 let enc = JSONEncoder()

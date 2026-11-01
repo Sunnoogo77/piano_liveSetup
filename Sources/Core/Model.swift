@@ -207,30 +207,39 @@ func eq(_ edits: [(Int, Float, Float)] = [], hpf: Float? = nil, lpf: Float? = ni
 
 // MARK: - Preset
 
+/// Les familles de sons, dans l'ordre où la bibliothèque les montre : les
+/// claviers d'abord, les instruments qui ne sont pas des claviers ensuite, les
+/// combinaisons à la fin.
 enum Category: String, Codable, CaseIterable {
     case acoustic  = "Pianos acoustiques"
     case electric  = "Pianos électriques"
     case organ     = "Orgues"
-    case pad       = "Nappes & cordes"
+    case pad       = "Nappes"
+    case strings   = "Cordes"
+    case guitar    = "Guitares"
+    case reed      = "Accordéon & anches"
+    case mallet    = "Mailloches"
     case layered   = "Superpositions"
     case split     = "Partages clavier"
 
-    var short: String {
-        switch self {
-        case .acoustic: return "Acoustique"
-        case .electric: return "Électrique"
-        case .organ:    return "Orgue"
-        case .pad:      return "Nappe"
-        case .layered:  return "Superposé"
-        case .split:    return "Partage"
-        }
+    /// Une famille inconnue ne doit jamais rendre une configuration illisible :
+    /// la bibliothèque est de toute façon refondue au chargement
+    /// (`RigConfig.merge`), ce qui remet chaque son dans sa famille.
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = Category(rawValue: raw) ?? .acoustic
     }
+
     var symbol: String {
         switch self {
         case .acoustic: return "pianokeys"
         case .electric: return "bolt.fill"
         case .organ:    return "pipe.and.drop.fill"
         case .pad:      return "waveform.path"
+        case .strings:  return "tuningfork"
+        case .guitar:   return "guitars"
+        case .reed:     return "wind"
+        case .mallet:   return "bell"
         case .layered:  return "square.stack.3d.up.fill"
         case .split:    return "rectangle.split.2x1.fill"
         }
@@ -380,7 +389,7 @@ enum Library {
                         eqBands: eq([(3, 1600, 2.0)], hpf: 60),
                         drive: 0.28, tremRate: 5.8, tremDepth: 0.42))
 
-        // ---------- Nappes & cordes ----------
+        // ---------- Nappes ----------
         p.append(Preset(name: "Warm Pad", subtitle: "Nappe douce et enveloppante",
                         category: .pad, layers: [L(Bank.ms, 0, 89, rev: 60)],
                         eqBands: eq(hpf: 60, lpf: 9000)))
@@ -404,6 +413,88 @@ enum Library {
         p.append(Preset(name: "Slow Strings", subtitle: "Cordes à attaque lente",
                         category: .pad, layers: [L(Bank.ms, 0, 49, rev: 54)],
                         eqBands: eq([(1, 150, 1.0)], hpf: 60)))
+
+        // ---------- Cordes ----------
+        // Les familles qui suivent sortent des deux banques générales, celles
+        // qui sont toujours installées : aucun téléchargement de plus, et une
+        // installation allégée les a aussi.
+        p.append(Preset(name: "Violon", subtitle: "Violon solo, archet soutenu",
+                        category: .strings, layers: [L(Bank.ms, 0, 40, rev: 42)],
+                        eqBands: eq([(2, 400, -2.0), (4, 3000, 1.5)], hpf: 150)))
+
+        p.append(Preset(name: "Violoncelle", subtitle: "Grave chaud, chant en main gauche",
+                        category: .strings, layers: [L(Bank.ms, 0, 42, rev: 38)],
+                        eqBands: eq([(1, 140, 1.5), (4, 3200, 1.0)], hpf: 55)))
+
+        p.append(Preset(name: "Ensemble à cordes", subtitle: "Pupitre entier, large et lent",
+                        category: .strings, layers: [L(Bank.ms, 0, 48, rev: 50)],
+                        eqBands: eq([(1, 160, 1.0), (5, 9000, 1.0)], hpf: 45)))
+
+        p.append(Preset(name: "Pizzicato", subtitle: "Cordes pincées, notes courtes",
+                        category: .strings, layers: [L(Bank.ms, 0, 45, rev: 26)],
+                        eqBands: eq([(4, 4000, 2.0)], hpf: 60)))
+
+        p.append(Preset(name: "Harpe", subtitle: "Harpe de concert, pour les arpèges",
+                        category: .strings, layers: [L(Bank.ms, 0, 46, rev: 44)],
+                        eqBands: eq([(5, 9000, 1.5)], hpf: 45)))
+
+        // ---------- Guitares ----------
+        p.append(Preset(name: "Nylon", subtitle: "Guitare classique, cordes nylon",
+                        category: .guitar, layers: [L(Bank.ms, 0, 24, rev: 28)],
+                        eqBands: eq([(2, 400, -1.5), (4, 4000, 1.5)], hpf: 70)))
+
+        p.append(Preset(name: "Folk", subtitle: "Cordes acier, médiator franc",
+                        category: .guitar, layers: [L(Bank.ms, 0, 25, rev: 24)],
+                        eqBands: eq([(4, 4500, 2.5), (5, 9000, 2.0)], hpf: 80),
+                        compAmount: 0.25))
+
+        p.append(Preset(name: "Jazz Box", subtitle: "Demi-caisse, médium rond",
+                        category: .guitar, layers: [L(Bank.ms, 0, 26, rev: 22)],
+                        eqBands: eq([(1, 180, 1.5), (5, 6000, -3.5)], hpf: 75, lpf: 10000)))
+
+        p.append(Preset(name: "Clean Chorus", subtitle: "Électrique claire, chorus large",
+                        category: .guitar, layers: [L(Bank.ms, 0, 27, rev: 26, cho: 48)],
+                        eqBands: eq([(3, 1800, 1.5)], hpf: 80)))
+
+        // ---------- Accordéon & anches ----------
+        p.append(Preset(name: "Accordéon", subtitle: "Musette, attaque franche",
+                        category: .reed, layers: [L(Bank.ms, 0, 21, rev: 24)],
+                        eqBands: eq([(2, 420, -2.5), (4, 3200, 1.5)], hpf: 70)))
+
+        p.append(Preset(name: "Bandonéon", subtitle: "Accordéon tango, plus nasal",
+                        category: .reed, layers: [L(Bank.ms, 0, 23, rev: 26)],
+                        eqBands: eq([(3, 1600, 2.0), (5, 8000, -2.0)], hpf: 75)))
+
+        p.append(Preset(name: "Harmonica", subtitle: "Diatonique, soufflé court",
+                        category: .reed, layers: [L(Bank.ms, 0, 22, rev: 28)],
+                        eqBands: eq([(2, 500, -3.0), (4, 3800, 2.0)], hpf: 110),
+                        compAmount: 0.3))
+
+        p.append(Preset(name: "Harmonium", subtitle: "Orgue à anches, souffle continu",
+                        category: .reed, layers: [L(Bank.ms, 0, 20, rev: 32)],
+                        eqBands: eq([(1, 120, 1.5)], hpf: 50, lpf: 9000)))
+
+        // ---------- Mailloches ----------
+        p.append(Preset(name: "Vibraphone", subtitle: "Lames et moteur lent",
+                        category: .mallet, layers: [L(Bank.ms, 0, 11, rev: 34)],
+                        eqBands: eq([(5, 8000, 1.0)], hpf: 60),
+                        tremRate: 4.4, tremDepth: 0.3))
+
+        p.append(Preset(name: "Marimba", subtitle: "Bois sec, attaque nette",
+                        category: .mallet, layers: [L(Bank.ms, 0, 12, rev: 24)],
+                        eqBands: eq([(4, 3000, 1.5)], hpf: 70)))
+
+        p.append(Preset(name: "Célesta", subtitle: "Cloches douces, registre haut",
+                        category: .mallet, layers: [L(Bank.ms, 0, 8, rev: 36)],
+                        eqBands: eq([(5, 10000, 2.0)], hpf: 90)))
+
+        p.append(Preset(name: "Kalimba", subtitle: "Piano à pouces, lames courtes",
+                        category: .mallet, layers: [L(Bank.ms, 0, 108, rev: 30)],
+                        eqBands: eq([(4, 3600, 2.0)], hpf: 100)))
+
+        p.append(Preset(name: "Cloches", subtitle: "Cloches tubulaires, longue traîne",
+                        category: .mallet, layers: [L(Bank.ms, 0, 14, rev: 56)],
+                        eqBands: eq([(5, 9000, 1.5)], hpf: 60)))
 
         // ---------- Superpositions ----------
         p.append(Preset(name: "Grand + Soft Pad", subtitle: "Piano devant, nappe discrète",
@@ -436,6 +527,12 @@ enum Library {
                                  L(Bank.padSweep, vol: 0.30, rev: 60)],
                         eqBands: eq(hpf: 45), layerMix: 0.30))
 
+        p.append(Preset(name: "Grand + Quatuor", subtitle: "Piano et cordes acoustiques",
+                        category: .layered,
+                        layers: [L(Bank.salamander, rev: 26),
+                                 L(Bank.ms, 0, 48, vol: 0.26, rev: 56)],
+                        eqBands: eq(hpf: 30), layerMix: 0.26))
+
         p.append(Preset(name: "Organ + Choir", subtitle: "Orgue soutenu par des voix",
                         category: .layered,
                         layers: [L(Bank.orgDrawbar, rev: 24),
@@ -455,6 +552,12 @@ enum Library {
                                  L(Bank.salamander, lo: 60, hi: 108, rev: 26)],
                         eqBands: eq(hpf: 32), layerMix: 0.55))
 
+        p.append(Preset(name: "Accordéon / Piano", subtitle: "Accordéon sous Do3, piano au-dessus",
+                        category: .split,
+                        layers: [L(Bank.ms, 0, 21, vol: 0.75, lo: 21, hi: 59, rev: 24),
+                                 L(Bank.salamander, lo: 60, hi: 108, rev: 26)],
+                        eqBands: eq(hpf: 32), layerMix: 0.75))
+
         return p
     }
 }
@@ -467,7 +570,7 @@ struct RigConfig: Codable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         soundsDir = try c.decodeIfPresent(String.self, forKey: .soundsDir) ?? AppPaths.sounds.path
-        presets = try c.decodeIfPresent([Preset].self, forKey: .presets) ?? Library.all()
+        presets = Self.merge(stored: try c.decodeIfPresent([Preset].self, forKey: .presets) ?? [])
         masterVolume = try c.decodeIfPresent(Float.self, forKey: .masterVolume) ?? 0.8
         audioDeviceName = try c.decodeIfPresent(String.self, forKey: .audioDeviceName) ?? ""
         bufferFrames = try c.decodeIfPresent(UInt32.self, forKey: .bufferFrames) ?? 128
@@ -507,6 +610,46 @@ struct RigConfig: Codable {
     /// Demander à GitHub, au lancement, s'il existe une version plus récente.
     /// Rien n'est téléchargé : l'application se contente de le dire.
     var checkUpdates: Bool = true
+
+    /// La bibliothèque vient du code, les réglages viennent du disque.
+    ///
+    /// La liste complète des sons est enregistrée dans `setup.json`. Sans cette
+    /// fusion, les sons ajoutés par une mise à jour n'apparaîtraient jamais :
+    /// c'est l'ancienne liste qui serait relue, indéfiniment. On repart donc de
+    /// la bibliothèque du code — elle porte les couches, les familles et les
+    /// textes — et on y reporte ce qui appartient à l'utilisateur : son
+    /// étalonnage et ses retouches de son.
+    static func merge(stored: [Preset], library: [Preset] = Library.all()) -> [Preset] {
+        guard !stored.isEmpty else { return library }
+        var byName: [String: Preset] = [:]
+        for p in stored { byName[p.name] = p }
+
+        // Un son qui vient d'arriver n'a pas encore été étalonné. Plutôt que de
+        // le laisser à 1 — il sortirait bien plus fort que les autres, en plein
+        // concert — on lui donne le niveau médian de la bibliothèque, jusqu'au
+        // prochain `make calibrate`.
+        let gains = stored.map { $0.gain }.sorted()
+        let medianGain = gains[gains.count / 2]
+
+        var out = library.map { def -> Preset in
+            guard let old = byName[def.name] else {
+                var p = def; p.gain = medianGain; return p
+            }
+            var p = def
+            p.eqBands = old.eqBands
+            p.drive = old.drive
+            p.tremRate = old.tremRate
+            p.tremDepth = old.tremDepth
+            p.compAmount = old.compAmount
+            p.gain = old.gain
+            p.layerMix = old.layerMix
+            return p
+        }
+        // Un son que la bibliothèque ne connaît plus reste jouable, à la fin.
+        let known = Set(library.map { $0.name })
+        out.append(contentsOf: stored.filter { !known.contains($0.name) })
+        return out
+    }
 
     static func defaults() -> RigConfig {
         RigConfig(soundsDir: AppPaths.sounds.path, presets: Library.all())

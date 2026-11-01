@@ -79,6 +79,10 @@ final class MicInput: @unchecked Sendable {
     private let inPeak: UnsafeMutablePointer<Float>
 
     let chain = ProcessorChain()
+    /// Analyseur de l'entrée, avant gain et avant égalisation : c'est ce que
+    /// le micro entend. Il tourne même quand l'écoute est coupée — on règle
+    /// presque toujours une voix sans la renvoyer dans les haut-parleurs.
+    let spectrum = SpectrumTap()
     var gain: Float = 1
     /// Coupé par défaut : un micro ouvert près des haut-parleurs du piano siffle.
     var monitoring = false
@@ -142,10 +146,13 @@ final class MicInput: @unchecked Sendable {
         channels = max(1, Int(fmt.mChannelsPerFrame))
         outputSampleRate = osr
         chain.sampleRate = Float(osr)
+        spectrum.sampleRate = Float(inputSampleRate)
+        spectrum.reset()
         writePos.pointee = 0
         readPos = 0
 
         let ringPtr = ring, wPtr = writePos, cap = capacity, ch = channels, peakPtr = inPeak
+        let tap = spectrum
         var pid: AudioDeviceIOProcID?
         let st = AudioDeviceCreateIOProcIDWithBlock(&pid, id, nil) { _, inData, _, _, _ in
             let bufs = UnsafeMutableAudioBufferListPointer(
@@ -166,6 +173,7 @@ final class MicInput: @unchecked Sendable {
                     v /= Float(interleavedChannels)
                 }
                 if abs(v) > peak { peak = abs(v) }
+                tap.push(v)
                 ringPtr[w] = v
                 w += 1; if w >= cap { w = 0 }
             }
@@ -197,6 +205,7 @@ final class MicInput: @unchecked Sendable {
         procID = nil
         running = false
         inPeak.pointee = 0
+        spectrum.reset()
     }
 
     // MARK: Lecture depuis le rendu de sortie

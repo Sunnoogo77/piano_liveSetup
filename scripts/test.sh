@@ -4,7 +4,12 @@
 #   ./scripts/test.sh --audio  ajoute l'auto-test complet (joue du son, ~2 min)
 set -euo pipefail
 cd "$(dirname "$0")/.."
-[ -x build/bin/chordtest ] || ./scripts/build.sh
+# Même précaution que pour l'étalonnage : un test vert sur un binaire périmé
+# ne prouve rien.
+if [ ! -x build/bin/chordtest ] \
+   || [ -n "$(find Sources -name '*.swift' -newer build/bin/chordtest -print -quit)" ]; then
+  ./scripts/build.sh
+fi
 echo "── Reconnaissance d'accords ──────────────────────────"
 build/bin/chordtest | tail -3
 echo

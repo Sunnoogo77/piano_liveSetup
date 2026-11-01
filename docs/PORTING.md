@@ -78,7 +78,7 @@ directement un SF2 et joue du MIDI. Une variante « tout Swift, tout Apple » es
 donc faisable. Ce qu'elle coûte, honnêtement :
 
 - `AVAudioUnitSampler` ne donne pas la main sur les réglages fins par banque
-  (`fluid_synth_set_gen`, réverbération, chorus) ; l'équilibre des 31 sons
+  (`fluid_synth_set_gen`, réverbération, chorus) ; l'équilibre des 51 sons
   serait à refaire à l'oreille ;
 - un son par échantillonneur : les superpositions demandent plusieurs nœuds ;
 - la chaîne de traitement (égaliseur, saturation, trémolo, limiteur) se place

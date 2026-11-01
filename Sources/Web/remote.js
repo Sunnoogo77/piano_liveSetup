@@ -19,7 +19,10 @@ let KEY = new URLSearchParams(location.search).get('k')
 let L = {};               // instantané rapide
 let S = {};               // état lent (sons, égaliseur, prises)
 let library = [];
-let filter = null, query = '';
+let query = '';
+/* Familles refermées, par leur nom. Cinquante sons dans une colonne de
+   tablette, c'est du défilement ; repliées, c'est un sommaire. */
+let shutFams = new Set();
 let tab = localStorage.getItem('plsTab') || 'play';
 let grabbed = {};         // curseurs en cours de manipulation
 let es = null, polling = null, watchdog = 0, streamFails = 0;
@@ -182,19 +185,6 @@ function stop() {
 
 async function loadLibrary() {
   library = await (await api('/api/library')).json();
-  const cats = [...new Set(library.map(p => p.category))];
-  const host = $('#chips');
-  host.innerHTML = '';
-  const add = (label, value) => {
-    const b = document.createElement('button');
-    b.textContent = label;
-    b.dataset.v = value === null ? '' : value;
-    b.onclick = () => { filter = value; drawChips(); drawPresets(); };
-    host.appendChild(b);
-  };
-  add('Tout', null);
-  cats.forEach(c => add(c, c));
-  drawChips();
   drawPresets();
 }
 
@@ -258,8 +248,8 @@ function renderLive() {
   fader('master', L.master, v => Math.round(v * 100) + ' %');
   fader('layer', L.layerMix, v => Math.round(v * 100) + ' %', !S.hasLayer);
 
-  $$('#presets button').forEach(b =>
-    b.classList.toggle('on', +b.dataset.i === L.presetIndex));
+  // Le son choisi change : la case et la pastille de sa famille suivent.
+  drawPresets();
 
   // Accords
   const hasChord = L.chord && L.chord !== '—';
@@ -307,7 +297,7 @@ function renderLive() {
     bar.style.opacity = 1;
   } else { bar.style.width = '0%'; bar.style.opacity = .3; }
 
-  if (tab === 'eq') paintEQ();
+  if (tab === 'eq') { paintEQ(); paintMic(); }
 }
 
 const mmss = s => Math.floor((s || 0) / 60) + '′' + String((s || 0) % 60).padStart(2, '0') + '″';
@@ -374,7 +364,7 @@ function renderState() {
   drawPresets();
   drawBands();
   drawMic();
-  if (tab === 'eq') paintEQ();
+  if (tab === 'eq') { paintEQ(); paintMic(); }
 }
 
 function drawMic() {
@@ -457,34 +447,65 @@ function drawMic() {
   });
 }
 
-function drawChips() {
-  $$('#chips button').forEach(b =>
-    b.classList.toggle('on', (b.dataset.v || null) === filter));
-}
-
 function drawPresets() {
   const box = $('#presets');
   const q = query.trim().toLowerCase();
+  const searching = q.length > 0;
   const rows = library
     .map((p, i) => ({ p, i }))
-    .filter(({ p }) => (!filter || p.category === filter)
-      && (!q || (p.name + ' ' + p.subtitle + ' ' + p.category).toLowerCase().includes(q)));
-  $('#pcount').textContent = rows.length + ' / ' + library.length;
-  const sig = rows.map(r => r.i).join(',') + '|' + L.presetIndex;
+    .filter(({ p }) => !q || (p.name + ' ' + p.subtitle + ' ' + p.category).toLowerCase().includes(q));
+  $('#pcount').textContent = searching ? rows.length + ' sur ' + library.length
+                                       : library.length + ' sons';
+  $('#foldall').textContent = shutFams.size ? 'Tout déplier' : 'Tout replier';
+  $('#foldall').classList.toggle('hide', searching);
+
+  // Les familles dans l'ordre de la bibliothèque, celui du Mac.
+  const fams = [];
+  for (const r of rows) {
+    const last = fams[fams.length - 1];
+    if (!last || last.name !== r.p.category) fams.push({ name: r.p.category, rows: [r] });
+    else last.rows.push(r);
+  }
+
+  const sig = rows.map(r => r.i).join(',') + '|' + L.presetIndex
+    + '|' + [...shutFams].sort().join(',') + '|' + searching;
   if (box.dataset.sig === sig) return;
   box.dataset.sig = sig;
   box.innerHTML = '';
-  for (const { p, i } of rows) {
-    const b = document.createElement('button');
-    b.dataset.i = i;
-    b.classList.toggle('on', i === L.presetIndex);
-    const n = document.createElement('div'); n.className = 'n'; n.textContent = p.name;
-    const s = document.createElement('div'); s.className = 's'; s.textContent = p.subtitle;
-    b.append(n, s);
-    b.onclick = () => cmd('preset', { index: i });
-    box.appendChild(b);
+  if (!rows.length) { box.innerHTML = '<p class="note">Aucun son ne correspond.</p>'; return; }
+
+  for (const fam of fams) {
+    const shut = !searching && shutFams.has(fam.name);
+    const sec = document.createElement('section');
+    sec.className = 'fam' + (shut ? ' shut' : '');
+
+    const head = document.createElement('button');
+    head.className = 'famhead';
+    head.innerHTML = '<span class="chev">' + (shut ? '\u25b8' : '\u25be') + '</span>'
+      + '<span>' + fam.name + '</span>'
+      + (fam.rows.some(r => r.i === L.presetIndex) ? '<span class="dot"></span>' : '')
+      + '<span class="n num">' + fam.rows.length + '</span>';
+    head.onclick = () => {
+      shut ? shutFams.delete(fam.name) : shutFams.add(fam.name);
+      drawPresets();
+    };
+    sec.appendChild(head);
+
+    const grid = document.createElement('div');
+    grid.className = 'famgrid';
+    for (const { p, i } of fam.rows) {
+      const b = document.createElement('button');
+      b.dataset.i = i;
+      b.classList.toggle('on', i === L.presetIndex);
+      const n = document.createElement('div'); n.className = 'n'; n.textContent = p.name;
+      const sub = document.createElement('div'); sub.className = 's'; sub.textContent = p.subtitle;
+      b.append(n, sub);
+      b.onclick = () => cmd('preset', { index: i });
+      grid.appendChild(b);
+    }
+    sec.appendChild(grid);
+    box.appendChild(sec);
   }
-  if (!rows.length) box.innerHTML = '<p class="note">Aucun son ne correspond.</p>';
 }
 
 function drawTakes() {
@@ -665,15 +686,17 @@ function magDB(c, freq) {
 let selBand = 2;
 let peaks = new Float32Array(128).fill(-100);
 let specCache = new Float32Array(128).fill(-100);
+let micPeaks = new Float32Array(128).fill(-100);
+let micSpec = new Float32Array(128).fill(-100);
 
-function decodeSpectrum(b64) {
+function decodeSpectrum(b64, spec, peakHold) {
   if (!b64) return;
   const bin = atob(b64);
-  const n = Math.min(bin.length, specCache.length);
+  const n = Math.min(bin.length, spec.length);
   for (let i = 0; i < n; i++) {
     const db = bin.charCodeAt(i) / 255 * 72 - 72;
-    specCache[i] = db;
-    peaks[i] = Math.max(db, peaks[i] - 0.9);
+    spec[i] = db;
+    peakHold[i] = Math.max(db, peakHold[i] - 0.9);
   }
 }
 
@@ -681,71 +704,72 @@ function bandCenter(i) {
   return F_MIN * Math.pow(F_MAX / F_MIN, (i + 0.5) / 128);
 }
 
-function paintEQ() {
-  const wrap = $('#eqwrap'), c = $('#eqcanvas');
-  if (!wrap || wrap.offsetParent === null) return;
-  const w = wrap.clientWidth, h = wrap.clientHeight;
-  if (w < 20 || h < 20) return;
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) {
-    c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
-    c.style.width = w + 'px'; c.style.height = h + 'px';
-  }
-  const g = c.getContext('2d');
-  g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  g.clearRect(0, 0, w, h);
-  decodeSpectrum(L.spectrum);
-
+/* Le cadre d'un analyseur : la grille, le spectre, puis la courbe.
+   Le même tracé sert au piano et au micro — seule la source change. */
+function paintAnalyzer(g, w, h, spec, peakHold, bands) {
   // Grille
   g.font = '500 9px -apple-system,system-ui,sans-serif';
   g.textBaseline = 'alphabetic';
+  const dense = h >= 170;
   for (const f of GRID) {
+    if (!dense && f !== 100 && f !== 1000 && f !== 10000 && f !== 30) continue;
     const x = xForFreq(f, w);
     g.strokeStyle = 'rgba(255,255,255,' + (f === 1000 ? .09 : .05) + ')';
     g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke();
-    g.fillStyle = '#5E6877';
+    g.fillStyle = '#7A8296';
     g.textAlign = 'left';
     g.fillText(f >= 1000 ? (f / 1000) + 'k' : '' + f, x + 3, h - 4);
   }
   for (let db = -12; db <= 12; db += 6) {
+    if (!dense && db !== 0) continue;
     const y = yForEQ(db, h);
     g.strokeStyle = 'rgba(255,255,255,' + (db === 0 ? .14 : .05) + ')';
     g.setLineDash(db === 0 ? [] : [2, 4]);
     g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
     g.setLineDash([]);
     if (db !== 0) {
-      g.fillStyle = '#5E6877'; g.textAlign = 'right';
+      g.fillStyle = '#7A8296'; g.textAlign = 'right';
       g.fillText((db > 0 ? '+' : '') + db, w - 4, y - 3);
     }
   }
 
-  // Spectre
+  // Spectre : un gris. L'accent est réservé à la courbe qu'on règle.
   g.beginPath();
   g.moveTo(0, h);
   for (let i = 0; i < 128; i++) {
-    g.lineTo(xForFreq(bandCenter(i), w), yForSpec(specCache[i], h));
+    g.lineTo(xForFreq(bandCenter(i), w), yForSpec(spec[i], h));
   }
   g.lineTo(w, h);
   g.closePath();
   const grad = g.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, 'rgba(122,162,247,.42)');
-  grad.addColorStop(1, 'rgba(122,162,247,.05)');
+  grad.addColorStop(0, 'rgba(255,255,255,.14)');
+  grad.addColorStop(.35, 'rgba(255,255,255,.05)');
+  grad.addColorStop(.8, 'rgba(255,255,255,0)');
   g.fillStyle = grad;
   g.fill();
+  // L'arête se lit, le remplissage ne fait que donner la masse.
+  g.beginPath();
+  for (let i = 0; i < 128; i++) {
+    const x = xForFreq(bandCenter(i), w), y = yForSpec(spec[i], h);
+    i ? g.lineTo(x, y) : g.moveTo(x, y);
+  }
+  g.strokeStyle = 'rgba(255,255,255,.45)';
+  g.lineWidth = 1.2;
+  g.stroke();
 
   // Crêtes qui retombent
   g.beginPath();
   for (let i = 0; i < 128; i++) {
-    const x = xForFreq(bandCenter(i), w), y = yForSpec(peaks[i], h);
+    const x = xForFreq(bandCenter(i), w), y = yForSpec(peakHold[i], h);
     i ? g.lineTo(x, y) : g.moveTo(x, y);
   }
-  g.strokeStyle = 'rgba(237,241,247,.26)';
+  g.strokeStyle = 'rgba(255,255,255,.22)';
   g.lineWidth = 1;
   g.stroke();
 
   // Courbe d'égalisation
-  const bands = (S.eq || []).filter(b => b.enabled);
-  const cs = bands.map(b => coeffs(b.kind, b.freq, b.usesGain ? b.gain : 0, b.q));
+  const cs = (bands || []).filter(b => b.enabled)
+    .map(b => coeffs(b.kind, b.freq, b.usesGain ? b.gain : 0, b.q));
   g.beginPath();
   for (let x = 0; x <= w; x += 2) {
     const f = freqForX(x, w);
@@ -757,8 +781,43 @@ function paintEQ() {
   g.strokeStyle = '#4FD1C5';
   g.lineWidth = 2;
   g.stroke();
+}
 
-  placeHandles(w, h);
+/* Prépare le canevas à la taille de son cadre, écran Retina compris. */
+function fitCanvas(wrap, c) {
+  if (!wrap || wrap.offsetParent === null) return null;
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  if (w < 20 || h < 20) return null;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) {
+    c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+    c.style.width = w + 'px'; c.style.height = h + 'px';
+  }
+  const g = c.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  return { g, w, h };
+}
+
+function paintEQ() {
+  const f = fitCanvas($('#eqwrap'), $('#eqcanvas'));
+  if (!f) return;
+  decodeSpectrum(L.spectrum, specCache, peaks);
+  paintAnalyzer(f.g, f.w, f.h, specCache, peaks, S.eq || []);
+  placeHandles(f.w, f.h);
+}
+
+/* L'analyseur du micro : ce que l'entrée entend, avant gain et avant
+   égalisation, avec par-dessus la courbe qu'on lui applique. */
+function paintMic() {
+  const on = !!(S.mic && S.mic.on);
+  const hint = $('#micoff');
+  if (hint) hint.classList.toggle('hide', on);
+  const f = fitCanvas($('#micwrap'), $('#miccanvas'));
+  if (!f) return;
+  if (on) decodeSpectrum(L.micSpectrum, micSpec, micPeaks);
+  else { micSpec.fill(-100); micPeaks.fill(-100); }
+  paintAnalyzer(f.g, f.w, f.h, micSpec, micPeaks, (S.mic && S.mic.bands) || []);
 }
 
 function placeHandles(w, h) {
@@ -974,6 +1033,12 @@ function wire() {
     drawBands(); paintEQ();
   });
 
+  $('#foldall').onclick = () => {
+    const fams = [...new Set(library.map(p => p.category))];
+    shutFams = shutFams.size ? new Set() : new Set(fams);
+    drawPresets();
+  };
+
   $('#micon').onclick = () => cmd('mic', {});
   $('#micmon').onclick = () => cmd('micMonitor', { on: !(S.mic && S.mic.monitoring) });
   $('#micrescan').onclick = () => cmd('micRescan', {});
@@ -1004,6 +1069,7 @@ function wire() {
         if (el) { el.dataset.sig = ''; }
       });
       paintEQ();
+      paintMic();
     }, 120);
   });
 

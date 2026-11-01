@@ -172,6 +172,34 @@ de cadrage et de proportion. Relisez-les avant une refonte, pas avant une retouc
 
 ## 5. Pièges déjà rencontrés — ne les redécouvrez pas
 
+**La bibliothèque de sons est enregistrée dans `setup.json`.** Ajouter un preset à
+`Library.all()` ne suffit donc pas : une installation existante relirait l'ancienne liste
+et ne verrait rien de neuf. `RigConfig.merge` règle ça au chargement — la définition
+(couches, famille, textes, courbe de vélocité) vient du code, les réglages (égaliseur,
+effets, niveaux, gain d'étalonnage) viennent du disque, et un son inconnu de la
+bibliothèque est conservé à la fin. Un son qui vient d'arriver prend le gain médian des
+autres jusqu'au prochain `make calibrate` : à 1, il sortirait beaucoup plus fort que le
+reste, en plein concert.
+
+**L'étalonnage ne doit pas se laisser entraîner par un seul son.** La sonie commune était
+celle du son le plus contraignant ; une kalimba — attaque sèche, crête haute, sonie très
+basse — a tiré toute la bibliothèque douze décibels plus bas le jour où elle est arrivée.
+La cible se prend maintenant au huitième le plus bas, et chaque son est bridé par sa
+propre crête s'il ne peut pas l'atteindre sans écrêter. Regardez toujours la ligne
+« sonie cible » avant et après : c'est elle qui dit si la bibliothèque entière a bougé.
+
+**`scripts/calibrate.sh` et `scripts/test.sh` ne reconstruisaient que si l'outil
+manquait.** Cinq minutes d'étalonnage sur un binaire périmé n'échouent pas : elles
+écrivent simplement les mauvais gains, sans rien dire. Les deux scripts comparent
+désormais les dates des sources.
+
+**Un voile dessiné par-dessus doit savoir quand ne pas l'être.** `KeyboardView.splitAt`
+est un `Int?` : la zone de main gauche n'existe que pour un son partagé. Tant que le
+voile était dessiné *sous* des touches opaques, un mauvais point de partage ne se voyait
+pas ; le jour où il est passé au-dessus, la moitié gauche de tous les claviers s'est
+assombrie. Le `0` envoyé à la page de commande veut dire la même chose : rien à
+assombrir.
+
 **La file d'événements de FluidSynth déborde.** `fluid_synth_*` appelé hors du thread
 audio passe par un anneau d'événements vidé au rendu. Un arrêt d'urgence qui envoyait
 5 messages sur 16 canaux, suivi d'un rechargement de preset, le saturait
@@ -368,7 +396,7 @@ copiez pas le bundle à la main pour « finir le travail ».
 
 `make test-audio` demande un périphérique de sortie. Le contrôle du son interne du
 clavier est ignoré proprement si aucun piano n'est branché. La batterie ajoute, sur la
-vraie sortie audio : les 31 sons produisent du son, la
+vraie sortie audio : les 51 sons produisent du son, la
 transposition décale la hauteur au cent près, aucune note ne reste bloquée, les partages
 clavier routent les bonnes zones, l'EQ agit, l'arrêt d'urgence fonctionne, il reste de la
 marge avant saturation, une prise complète écrit ses quatre fichiers.

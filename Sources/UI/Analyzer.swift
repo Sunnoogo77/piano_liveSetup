@@ -27,8 +27,12 @@ private let specBottom: Float = -72
     h * CGFloat(1 - (max(specBottom, min(specTop, db)) - specBottom) / (specTop - specBottom))
 }
 
+/// L'analyseur et sa courbe : le même composant pour le piano et pour le
+/// micro. Il ne connaît qu'un analyseur et une chaîne de traitement, pas le
+/// moteur — c'est ce qui permet de le poser deux fois dans l'application.
 struct AnalyzerView: View {
-    let engine: LiveEngine
+    let tap: SpectrumTap
+    let chain: ProcessorChain
     @Binding var bands: [EQBand]
     @Binding var selected: Int
     var onChange: (Int, EQBand) -> Void
@@ -67,7 +71,7 @@ struct AnalyzerView: View {
             var p = Path(); p.move(to: CGPoint(x: x, y: 0)); p.addLine(to: CGPoint(x: x, y: h))
             ctx.stroke(p, with: .color(Color.white.opacity(f == 1000 ? 0.09 : 0.05)), lineWidth: 1)
             let label = f >= 1000 ? "\(Int(f / 1000))k" : "\(Int(f))"
-            ctx.draw(Text(label).font(.system(size: 11, weight: .medium)).foregroundStyle(Tone.txt2),
+            ctx.draw(Text(label).font(.value(10)).foregroundStyle(Tone.txt2),
                      at: CGPoint(x: x + 3, y: h - 9), anchor: .leading)
         }
         for db in stride(from: Float(-12), through: 12, by: 6) {
@@ -76,13 +80,12 @@ struct AnalyzerView: View {
             ctx.stroke(p, with: .color(Color.white.opacity(db == 0 ? 0.14 : 0.05)),
                        style: StrokeStyle(lineWidth: 1, dash: db == 0 ? [] : [2, 4]))
             if db != 0 {
-                ctx.draw(Text("\(Int(db) > 0 ? "+" : "")\(Int(db))").font(.system(size: 11)).foregroundStyle(Tone.txt2),
+                ctx.draw(Text("\(Int(db) > 0 ? "+" : "")\(Int(db))").font(.value(10)).foregroundStyle(Tone.txt2),
                          at: CGPoint(x: w - 5, y: y - 7), anchor: .trailing)
             }
         }
 
         // --- spectre ---
-        let tap = engine.spectrum
         tap.analyse()
         let n = tap.bandCount
         var fill = Path()
@@ -120,10 +123,10 @@ struct AnalyzerView: View {
         let steps = 240
         var freqs = [Float](); freqs.reserveCapacity(steps)
         for i in 0..<steps { freqs.append(freqForX(CGFloat(i) / CGFloat(steps - 1) * w, w)) }
-        let response = engine.chain.responseDB(freqs: freqs)
+        let response = chain.responseDB(freqs: freqs)
 
         if selected >= 0 && selected < bands.count && bands[selected].enabled {
-            let single = engine.chain.bandResponseDB(selected, freqs: freqs)
+            let single = chain.bandResponseDB(selected, freqs: freqs)
             var sp = Path()
             for (i, db) in single.enumerated() {
                 let pt = CGPoint(x: CGFloat(i) / CGFloat(steps - 1) * w, y: yForEQ(db, h))

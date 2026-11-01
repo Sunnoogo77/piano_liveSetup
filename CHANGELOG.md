@@ -11,6 +11,76 @@ Pour passer à la dernière version : `./scripts/update.sh`
 
 ---
 
+## 1.3.0 — 2026-11-01
+
+Vingt sons qui ne sont pas des pianos, une bibliothèque qui se replie famille par
+famille, et un analyseur de spectre sur l'entrée micro. La passe de design
+continue là où elle s'était arrêtée : les écrans de réglages.
+
+### Ajouté
+- **Vingt sons, quatre familles nouvelles.** *Cordes* (violon, violoncelle,
+  ensemble, pizzicato, harpe), *Guitares* (nylon, folk, demi-caisse jazz,
+  électrique claire), *Accordéon & anches* (accordéon, bandonéon, harmonica,
+  harmonium) et *Mailloches* (vibraphone, marimba, célesta, kalimba, cloches
+  tubulaires). Plus deux combinaisons : *Grand + Quatuor* et un partage
+  *Accordéon / Piano*. La bibliothèque passe de 31 à 51 sons.
+  Aucun téléchargement de plus : ces sons sortent des deux banques générales
+  déjà installées, y compris en installation allégée.
+- **La bibliothèque se replie.** Chaque famille a un en-tête avec son compte et
+  un chevron ; « Tout replier » donne un sommaire de dix lignes. La famille du
+  son en cours porte un point, pour qu'une famille fermée ne le cache pas. Les
+  pastilles de filtre disparaissent : elles faisaient le même travail, moins
+  bien. Même chose sur la page de commande.
+- **Un analyseur de spectre sur l'entrée micro**, le même composant que pour le
+  piano : le spectre de ce que le micro entend, avec par-dessus la courbe des
+  sept bandes, et les poignées qu'on déplace. Sur le Mac et sur la tablette.
+- **Les sons ajoutés par une mise à jour apparaissent vraiment.** La liste des
+  sons est enregistrée dans `setup.json` : jusqu'ici, c'est l'ancienne qui était
+  relue, et une nouvelle version n'apportait aucun son. La bibliothèque vient
+  maintenant du code, vos réglages (égaliseur, effets, niveaux, étalonnage)
+  viennent du disque.
+
+### Corrigé
+- **Le voile sombre de la main gauche s'affichait sur tous les sons**, pas
+  seulement sur les partages clavier — la moitié gauche du clavier paraissait
+  éteinte sans raison. Il n'apparaît plus que là où il y a un point de partage,
+  sur le Mac comme sur la page.
+- **Le spectre de la page de commande était resté bleu** alors que l'application
+  l'avait passé en gris en 1.2.0, et ses graduations utilisaient encore l'ancien
+  gris trop sombre. La page et l'application se ressemblent de nouveau au pixel.
+- **L'étalonnage se laissait entraîner par un seul son.** La sonie commune était
+  celle du son le plus contraignant ; une kalimba — attaque sèche, crête haute,
+  sonie très basse — tirait toute la bibliothèque douze décibels plus bas. La
+  cible est maintenant prise parmi les plus basses sans être la plus basse, et
+  un son qui ne peut pas l'atteindre sans écrêter reste en dessous : l'outil le
+  dit, nommément.
+- **`make calibrate` et `make test` pouvaient tourner sur un binaire périmé** :
+  ils ne reconstruisaient que si l'outil manquait. Cinq minutes d'étalonnage qui
+  écrivent les mauvais gains, ça ne se voit pas.
+- **La courbe de l'égaliseur micro était plate au lancement** : la chaîne du
+  micro ne recevait ses réglages qu'à l'ouverture de l'entrée.
+
+### Modifié
+- **L'onglet Périphériques tient en colonnes.** Trois panneaux côte à côte sur
+  un grand écran, deux en dessous, un sur une fenêtre étroite — et la colonne
+  s'arrête à 1240 points au lieu de s'étirer. Les explications longues passent
+  en infobulle sur la commande qu'elles expliquent ; la version et les mises à
+  jour tiennent sur une ligne.
+- **L'onglet Enregistrer aussi** : les quatre fichiers produits passent en liste
+  au lieu de quatre cases étirées, et la liste des prises occupe la hauteur.
+- **L'écran de jeu donne la hauteur au clavier** plutôt qu'au cadre de l'accord,
+  et les deux faders de niveau se mettent côte à côte : un fader d'un mètre de
+  long se règle moins bien qu'un fader de trois cent cinquante points.
+
+### Pour les porteurs de fork
+- `AnalyzerView` prend désormais un `SpectrumTap` et une `ProcessorChain` au lieu
+  du moteur entier : c'est ce qui permet de le poser deux fois.
+- `MicInput` porte son propre `SpectrumTap`, alimenté par le bloc d'entrée, donc
+  actif même quand l'écoute est coupée.
+- `Category` décode tolérant et a quatre cas de plus ; `RigConfig.merge` fusionne
+  bibliothèque et réglages au chargement. `KeyboardView.splitAt` est un `Int?`.
+- Le flux temps réel porte `micSpectrum` quand l'entrée est ouverte.
+
 ## 1.2.0 — 2026-11-01
 
 Une passe de design sur toute l'interface, l'application et la page de commande.

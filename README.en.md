@@ -4,7 +4,7 @@
 
 **Turn a Mac into the sound engine for any USB MIDI piano.**
 
-31 stage sounds · 7-band EQ over a real-time spectrum analyser · live chord detection
+51 stage sounds · 7-band EQ over a real-time spectrum analyser · live chord detection
 recording to audio, MIDI and sheet music · microphone input · **2.9 ms latency**
 
 [Version française](README.md) · [Architecture](docs/ARCHITECTURE.md) · [Porting](docs/PORTING.md)
@@ -28,7 +28,7 @@ cd piano_liveSetup
 ```
 
 The script checks your Mac, installs what's missing, downloads the sound banks from
-their official sources, builds, calibrates all 31 sounds and puts the app in
+their official sources, builds, calibrates all 51 sounds and puts the app in
 `/Applications`.
 
 Short on disk? `./install.sh --light` skips the two large sampled pianos (250 MB
@@ -52,11 +52,13 @@ keyboard's internal engine (CC 122, a standard MIDI message) so you don't hear t
 pitches when you transpose — and restores it on quit. No setting on the instrument is
 ever changed.
 
-**31 calibrated sounds.** Six acoustic pianos, six electric, five organs, six pads and
-strings, six layered patches, two keyboard splits. The main piano is a **Yamaha C5
-with 16 velocity layers**. Each variant has its own EQ, drive, tremolo, compression and
-velocity curve. All are matched to the same loudness, measured by offline rendering,
-with 6 dB of headroom.
+**51 calibrated sounds, in ten families.** Six acoustic pianos, six electric, five
+organs, six pads — and, for anyone who wants to leave the piano behind: five bowed
+strings, four guitars, four accordions and reeds, five mallet instruments. Then seven
+layered patches and three keyboard splits. The main piano is a **Yamaha C5 with 16
+velocity layers**, and the list folds up family by family. Each variant has its own EQ,
+drive, tremolo, compression and velocity curve. All are matched to the same loudness,
+measured by offline rendering, with 6 dB of headroom.
 
 **Six screens:** Play, Equaliser, Chords, Keyboard, Record, Devices.
 
@@ -72,7 +74,7 @@ staves, for MuseScore, Dorico, Finale), `accords.txt` (time-stamped chord chart)
 **Remote control from a tablet — the whole app, not a subset.** In the Devices tab, turn
 on remote control: the app publishes a page on your local network. Scan the QR code, or
 type the address into the tablet's browser, and you get the same screens as on the Mac —
-the 31 sounds with search and families, the 7-band equaliser with its live spectrum
+the 51 sounds with search and collapsible families, the 7-band equaliser with its live spectrum
 analyser and handles you drag with a finger, chords, keyboard, takes, microphone. The
 layout adapts: a sidebar on an iPad in landscape, tabs at the bottom on a phone.
 

@@ -64,7 +64,6 @@ final class RigModel: ObservableObject {
     @Published var deviceNote: String?
     @Published var followOutput = true
     @Published var search = ""
-    @Published var categoryFilter: Category? = nil
 
     @Published var tab: Tab = .play
 
@@ -126,7 +125,6 @@ final class RigModel: ObservableObject {
 
     var filtered: [(offset: Int, element: Preset)] {
         presets.enumerated().filter { _, p in
-            (categoryFilter == nil || p.category == categoryFilter!) &&
             (search.isEmpty || p.name.localizedCaseInsensitiveContains(search)
                             || p.subtitle.localizedCaseInsensitiveContains(search)
                             || p.category.rawValue.localizedCaseInsensitiveContains(search))
@@ -201,6 +199,7 @@ final class RigModel: ObservableObject {
         hasKeyboard = engine.hasKeyboard
         followOutput = engine.followKeyboardOutput
         syncFromEngine(startIndex)
+        syncMicChain()
         refreshTakes()
         refreshDevices()
         remote.onCommand = { [weak self] action, args in
@@ -347,7 +346,7 @@ final class RigModel: ObservableObject {
             engine.spectrum.analyse()
         }
 
-        let live: [String: Any] = [
+        var live: [String: Any] = [
             "rev": remoteRev,
             "presetIndex": presetIndex,
             "transpose": Int(transpose), "octave": Int(octave),
@@ -361,8 +360,11 @@ final class RigModel: ObservableObject {
             "recording": isRecording, "recSeconds": Int(recSeconds), "recNotes": recNotes,
             "micPeak": micOn ? micPeakDB : -120,
             "history": chordHistory.prefix(14).map { $0.symbol },
-            "spectrum": spectrumPayload(),
+            "spectrum": spectrumPayload(engine.spectrum),
         ]
+        // Le spectre du micro ne part que quand l'entrée est ouverte : sinon
+        // c'est 172 caractères de silence, trente fois par seconde.
+        if micOn { live["micSpectrum"] = spectrumPayload(engine.mic.spectrum) }
         if let d = try? JSONSerialization.data(withJSONObject: live) { remote.publish(live: d) }
         let n = remote.streamCount
         if n != remoteClients { remoteClients = n }
@@ -370,8 +372,8 @@ final class RigModel: ObservableObject {
 
     /// Les 128 bandes de l'analyseur, un octet par bande : −72 dB → 0,
     /// 0 dB → 255. 128 octets, soit 172 caractères, par image.
-    private func spectrumPayload() -> String {
-        let bands = engine.spectrum.bandsDB
+    private func spectrumPayload(_ tap: SpectrumTap) -> String {
+        let bands = tap.bandsDB
         var bytes = [UInt8](repeating: 0, count: bands.count)
         for i in bands.indices {
             let v = (max(-72, min(0, bands[i])) + 72) / 72 * 255
@@ -383,7 +385,8 @@ final class RigModel: ObservableObject {
     private func refreshRemoteSlow(force: Bool = false) {
         guard remoteOn else { return }
         let p = preset
-        let splitPoint = (p.category == .split && p.layers.count > 1) ? Int(p.layers[1].loKey) : 60
+        // 0 : ce son n'est pas partagé. La page n'assombrit alors rien du tout.
+        let splitPoint = (p.category == .split && p.layers.count > 1) ? Int(p.layers[1].loKey) : 0
         let eqList: [[String: Any]] = bands.map {
             ["label": $0.label, "kind": $0.kind.tag, "freq": $0.freq,
              "gain": $0.gain, "q": $0.q, "enabled": $0.enabled,
@@ -674,9 +677,7 @@ final class RigModel: ObservableObject {
             return
         }
         micOn = true
-        engine.mic.gain = micGain
-        engine.mic.chain.compAmount = micComp
-        engine.mic.chain.updateEQ(micBands)
+        syncMicChain()
         engine.mic.monitoring = micMonitoring
         micSilent = false
         micSilentSince = Date()
@@ -697,6 +698,15 @@ final class RigModel: ObservableObject {
     func setMicComp(_ v: Float) { micComp = v; engine.mic.chain.compAmount = v }
     func setMicMonitoring(_ on: Bool) { micMonitoring = on; engine.mic.monitoring = on }
     func commitMicBands() { engine.mic.chain.updateEQ(micBands) }
+
+    /// La chaîne du micro porte ses réglages dès le lancement, entrée ouverte
+    /// ou non : l'analyseur du micro affiche sa courbe tout de suite, au lieu
+    /// d'une ligne plate qui ne correspond pas aux tranches juste en dessous.
+    private func syncMicChain() {
+        engine.mic.gain = micGain
+        engine.mic.chain.compAmount = micComp
+        engine.mic.chain.updateEQ(micBands)
+    }
     func resetMicEQ() { micBands = micDefaultEQ(); commitMicBands() }
 
     private func syncFromEngine(_ i: Int) {

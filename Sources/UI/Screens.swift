@@ -4,7 +4,10 @@ import SwiftUI
 
 struct KeyboardView: View {
     let active: Set<Int>
-    var splitAt: Int = 60
+    /// Point de partage, seulement pour un son qui en a un. `nil` ailleurs :
+    /// un voile sombre sur la moitié gauche d'un piano simple ne veut rien
+    /// dire, et il se voit beaucoup.
+    var splitAt: Int? = nil
     var showNames = true
     var lowest = 21, highest = 108          // La0 → Do8
 
@@ -63,7 +66,7 @@ struct KeyboardView: View {
                 // un filet au point de partage. Les touches blanches sont
                 // opaques, donc le voile doit venir après elles, sinon il
                 // disparaît. Les notes tenues gardent toutes la même couleur.
-                if splitAt > lowest,
+                if let splitAt, splitAt > lowest,
                    let edge = xFor[whites.first(where: { $0 >= splitAt }) ?? highest] {
                     ctx.fill(Path(CGRect(x: 0, y: 0, width: edge, height: wh)),
                              with: .color(Color.black.opacity(0.26)))
@@ -199,19 +202,30 @@ struct PlayScreen: View {
                         .frame(width: 300)
                     }
                 }
+                // Le panneau d'accord ne grandit pas sans fin : au-delà, c'est
+                // un symbole de huit caractères au milieu d'un grand vide.
+                .frame(maxHeight: 300)
 
+                // Le clavier est l'un des deux endroits riches de l'outil :
+                // c'est lui qui prend la hauteur disponible, jusqu'à une limite
+                // — au-delà, il n'apprend plus rien et écrase le reste.
                 KeyboardView(active: Set(m.sounding), splitAt: splitPoint)
-                    .frame(minHeight: tight ? 72 : 100, maxHeight: tight ? 96 : 152)
+                    .frame(minHeight: tight ? 72 : 120, maxHeight: tight ? 96 : 260)
                     .layoutPriority(1)
 
                 HStack(alignment: .top, spacing: Metric.gap) {
                     Panel(title: "Niveaux") {
-                        VStack(spacing: 12) {
-                            Fader(title: "Volume général",
-                                  value: Binding(get: { m.master }, set: { m.setMaster($0) }))
-                            Fader(title: m.preset.category == .split ? "Niveau main gauche" : "Niveau de la nappe",
-                                  value: Binding(get: { m.layerMix }, set: { m.setLayer($0) }),
-                                  enabled: m.preset.hasSecondLayer)
+                        // Un fader étiré sur toute la largeur se règle moins
+                        // bien qu'un fader de trois cent cinquante points :
+                        // le doigt parcourt un mètre pour deux décibels.
+                        if wide {
+                            HStack(alignment: .top, spacing: Metric.gap) {
+                                masterFader.frame(maxWidth: 340)
+                                layerFader.frame(maxWidth: 340)
+                                Spacer(minLength: 0)
+                            }
+                        } else {
+                            VStack(spacing: 12) { masterFader; layerFader }
                         }
                     }
                     Panel(title: "Scène") {
@@ -230,6 +244,17 @@ struct PlayScreen: View {
         }
     }
 
+    private var masterFader: some View {
+        Fader(title: "Volume général",
+              value: Binding(get: { m.master }, set: { m.setMaster($0) }))
+    }
+
+    private var layerFader: some View {
+        Fader(title: m.preset.category == .split ? "Niveau main gauche" : "Niveau de la nappe",
+              value: Binding(get: { m.layerMix }, set: { m.setLayer($0) }),
+              enabled: m.preset.hasSecondLayer)
+    }
+
     // Les deux commandes de scène, écrites une fois et posées soit côte à
     // côte, soit l'une sous l'autre selon la place.
     @ViewBuilder
@@ -242,11 +267,9 @@ struct PlayScreen: View {
             filled: m.isRecording, wide: true, height: 40) { m.toggleRecording() }
     }
 
-    private var splitPoint: Int {
-        if m.preset.category == .split, m.preset.layers.count > 1 {
-            return Int(m.preset.layers[1].loKey)
-        }
-        return 60
+    private var splitPoint: Int? {
+        guard m.preset.category == .split, m.preset.layers.count > 1 else { return nil }
+        return Int(m.preset.layers[1].loKey)
     }
     private var pitchLabel: String {
         let t = Int(m.transpose) + Int(m.octave) * 12
@@ -329,9 +352,9 @@ struct KeyboardScreen: View {
                     KeyboardView(active: Set(m.sounding), splitAt: splitPoint)
                         .frame(minHeight: 150, maxHeight: 360)
                     HStack(spacing: 20) {
-                        Caption(text: m.preset.category == .split
+                        Caption(text: splitPoint != nil
                                 ? "Fond assombri : main gauche, jusqu'au point de partage"
-                                : "Fond assombri : sous Do4")
+                                : "Ce son couvre le clavier entier")
                         Spacer()
                         Text("\(m.sounding.count) note\(m.sounding.count == 1 ? "" : "s") tenue\(m.sounding.count == 1 ? "" : "s")")
                             .font(.value(11)).foregroundStyle(Tone.txt1)
@@ -354,10 +377,8 @@ struct KeyboardScreen: View {
         }
     }
 
-    private var splitPoint: Int {
-        if m.preset.category == .split, m.preset.layers.count > 1 {
-            return Int(m.preset.layers[1].loKey)
-        }
-        return 60
+    private var splitPoint: Int? {
+        guard m.preset.category == .split, m.preset.layers.count > 1 else { return nil }
+        return Int(m.preset.layers[1].loKey)
     }
 }

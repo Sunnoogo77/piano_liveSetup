@@ -6,8 +6,8 @@
 
 **Votre Mac devient l'expandeur de n'importe quel piano numérique branché en USB.**
 
-31 sons de scène · égaliseur 7 bandes sur analyseur de spectre · détection d'accords
-enregistrement audio, MIDI et partition · entrée micro · **2,9 ms de latence**
+51 sons de scène · égaliseur 7 bandes sur analyseur de spectre · détection d'accords
+enregistrement audio, MIDI et partition · entrée micro analysée · **2,9 ms de latence**
 
 *A macOS live rig for any USB MIDI piano.* **[Read this in English →](README.en.md)**
 
@@ -26,7 +26,7 @@ cd piano_liveSetup
 ```
 
 C'est tout. Le script vérifie le Mac, installe ce qui manque, télécharge les banques de
-sons depuis leurs sources officielles, compile, étalonne les 31 sons et pose
+sons depuis leurs sources officielles, compile, étalonne les 51 sons et pose
 l'application dans `/Applications`.
 
 Peu de place sur le disque ? `./install.sh --light` saute les deux grands pianos
@@ -63,16 +63,30 @@ Elle coupe aussi le son interne du clavier (CC 122, un message MIDI standard) po
 vous n'entendiez pas deux hauteurs quand vous transposez — et le rétablit en se fermant.
 Aucun réglage n'est modifié sur l'instrument.
 
-### 31 sons, étalonnés
+### 51 sons, en dix familles
 
-Six pianos acoustiques, six électriques, cinq orgues, six nappes et cordes, six
-superpositions, deux partages clavier. Le piano principal est un **Yamaha C5 à 16 couches
-de vélocité**.
+Six pianos acoustiques, six électriques, cinq orgues, six nappes — et, pour qui veut
+sortir du piano : cinq **cordes** (violon, violoncelle, ensemble, pizzicato, harpe),
+quatre **guitares**, quatre **accordéons et anches** (accordéon, bandonéon, harmonica,
+harmonium), cinq **mailloches** (vibraphone, marimba, célesta, kalimba, cloches), sept
+superpositions et trois partages clavier. Le piano principal est un **Yamaha C5 à 16
+couches de vélocité**.
 
 Les variantes ne sont pas des doublons : chacune a son égaliseur, sa saturation, son
 trémolo, sa compression et sa courbe de vélocité — c'est comme ça qu'un Nord fabrique ses
 sons. Tous sont alignés à la même sonie, mesurée par rendu hors ligne, avec 6 dB de marge
-avant saturation.
+avant saturation ; un son trop percussif pour l'atteindre sans écrêter reste en dessous,
+et l'étalonnage le dit.
+
+La liste se replie famille par famille : repliée, c'est un sommaire de dix lignes, et on
+choisit un son sans faire défiler cinquante cases.
+
+<div align="center">
+
+![La bibliothèque de sons](docs/images/library.png)
+*Les dix familles. Celle du son en cours porte un point, pour qu'une famille fermée ne le cache pas.*
+
+</div>
 
 ### Six écrans
 
@@ -81,17 +95,23 @@ avant saturation.
 | **Jeu** | l'écran de scène : accord joué, hauteur, clavier, niveaux |
 | **Égaliseur** | analyseur de spectre temps réel, EQ 7 bandes à points déplaçables, effets |
 | **Accords** | l'accord en grand, sa fiabilité, les notes et leurs degrés, l'historique |
-| **Clavier** | les 88 touches, colorées par main |
+| **Clavier** | les 88 touches, les notes tenues, la zone de main gauche |
 | **Enregistrer** | la prise en cours et toutes les prises passées |
-| **Périphériques** | clavier MIDI, sortie audio, entrée micro et son égaliseur |
+| **Périphériques** | clavier MIDI, sortie audio, page de commande, entrée micro |
 
 <div align="center">
 
-![En attente d'un clavier](docs/images/tab-play-waiting.png)
-*Piano éteint : l'application le dit clairement et reste utilisable. Allumez-le, elle le prend en main toute seule.*
-
 ![Égaliseur](docs/images/tab-eq.png)
 *L'égaliseur : la courbe se pose sur le spectre, les sept points se tirent à la souris.*
+
+![Les accords](docs/images/tab-chords.png)
+*L'accord en grand, sa fiabilité, les notes avec leur degré, et ce qui vient d'être joué.*
+
+![Périphériques](docs/images/tab-devices.png)
+*Les réglages tiennent en colonnes, et l'entrée micro a le même analyseur que le piano.*
+
+![En attente d'un clavier](docs/images/tab-play-waiting.png)
+*Piano éteint : l'application le dit clairement et reste utilisable. Allumez-le, elle le prend en main toute seule.*
 
 </div>
 
@@ -124,7 +144,7 @@ sur votre réseau local. Scannez le QR code affiché, ou tapez l'adresse dans le
 de la tablette.
 
 **C'est l'application entière, pas un bout.** Les mêmes écrans que sur le Mac : les
-31 sons avec recherche et familles, l'égaliseur sept bandes avec son analyseur de
+51 sons avec recherche et familles repliables, l'égaliseur sept bandes avec son analyseur de
 spectre et des poignées que l'on déplace au doigt, les accords, le clavier, les prises,
 le micro. La mise en page s'adapte : barre latérale sur iPad en paysage, onglets en bas
 sur téléphone.
@@ -154,8 +174,11 @@ commande.*
 ### Un micro, à l'occasion
 
 Entrée micro avec gain, compresseur et un **égaliseur 7 bandes indépendant** de celui du
-piano. Le renvoi dans la sortie est coupé par défaut : un micro ouvert près des
-haut-parleurs siffle — il faut l'ouvrir exprès.
+piano, posé sur **son propre analyseur de spectre** : on voit ce que le micro entend, et
+la courbe par-dessus. L'analyseur tourne même quand l'écoute est coupée — on règle
+presque toujours une voix sans la renvoyer dans les haut-parleurs. Le renvoi dans la
+sortie est coupé par défaut : un micro ouvert près des haut-parleurs siffle, il faut
+l'ouvrir exprès.
 
 macOS demande l'autorisation du micro à la première utilisation. Si elle a été refusée,
 l'application le dit et propose d'ouvrir le bon volet des réglages ; et si le
