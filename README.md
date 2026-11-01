@@ -19,6 +19,13 @@ enregistrement audio, MIDI et partition · entrée micro analysée · **2,9 ms d
 
 ## Installation
 
+> **Le son est fait par un Mac** : c'est lui qui porte le moteur, et l'application ne
+> s'installe que là. Un iPad, un iPhone, un PC Windows ou une machine Linux **pilotent**
+> cette application depuis leur navigateur, sans rien installer — voyez
+> [Piloter depuis un iPad ou un téléphone](#piloter-depuis-un-ipad-ou-un-téléphone). Ce
+> qu'il faudrait pour que le moteur lui-même tourne ailleurs est écrit noir sur blanc
+> dans [docs/PORTING.md](docs/PORTING.md).
+
 ```bash
 git clone https://github.com/Sunnoogo77/piano_liveSetup.git
 cd piano_liveSetup

@@ -21,6 +21,11 @@ recording to audio, MIDI and sheet music · microphone input · **2.9 ms latency
 
 ## Install
 
+> **A Mac makes the sound.** The engine runs there, and the app installs there only. An
+> iPad, an iPhone, a Windows PC or a Linux machine **drive** that app from their browser,
+> with nothing to install. What it would take to run the engine itself elsewhere is
+> spelled out in [docs/PORTING.md](docs/PORTING.md).
+
 ```bash
 git clone https://github.com/Sunnoogo77/piano_liveSetup.git
 cd piano_liveSetup
