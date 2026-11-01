@@ -194,7 +194,8 @@ cd piano_liveSetup && ./scripts/update.sh
 ```
 
 Le script récupère, reconstruit, lance les tests, et ne remplace l'application que si
-tout passe. **Vos réglages, vos sons et vos enregistrements ne sont pas touchés** : ils
+tout passe. (Il est arrivé avec la 1.1.0 : si votre copie est plus ancienne, faites
+`git pull --ff-only && ./install.sh` une fois, puis le script sera là.) **Vos réglages, vos sons et vos enregistrements ne sont pas touchés** : ils
 vivent dans `~/Music/Piano Live Setup`, en dehors du dépôt. Un fichier de configuration
 écrit par une version plus ancienne reste lisible — les réglages apparus depuis prennent
 leur valeur par défaut, le reste est conservé.

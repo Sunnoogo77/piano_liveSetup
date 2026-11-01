@@ -20,6 +20,19 @@ Pour seulement savoir s'il y a du nouveau, sans rien changer :
 Il sort avec le code 1 s'il existe une version plus récente, 0 sinon — pratique
 dans un script.
 
+### Si vous venez de la 1.0.0
+
+Le script de mise à jour est arrivé **avec** la 1.1.0 : une copie installée avant
+ne l'a pas encore. Une seule fois, faites venir le script à la main :
+
+```bash
+cd ~/Developer/piano_liveSetup   # là où vous avez cloné
+git pull --ff-only
+./install.sh --yes
+```
+
+Les fois suivantes, `./scripts/update.sh` suffira.
+
 ## Ce qui est conservé
 
 Tout ce qui vous appartient vit **en dehors** du dépôt, dans
