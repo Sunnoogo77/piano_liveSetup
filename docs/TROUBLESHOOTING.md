@@ -45,6 +45,34 @@ C'est normal : 1,5 Go d'échantillons passent en mémoire au lancement, dont un 
 16 couches de vélocité. Comptez une dizaine de secondes, une seule fois par session. Pour
 démarrer plus vite, réinstallez avec `./install.sh --light`.
 
+### Le micro ne passe pas
+
+Trois causes, dans cet ordre :
+
+1. **L'autorisation.** macOS demande l'accès au micro la première fois. Si vous avez
+   refusé, l'entrée s'ouvre sans erreur et n'envoie que du silence. L'onglet
+   *Périphériques* affiche l'état (« autorisé », « refusé… ») et propose d'ouvrir le bon
+   volet des réglages.
+2. **L'écoute est coupée.** C'est volontaire : un micro ouvert près des haut-parleurs
+   siffle. Rien ne sort tant que *Envoyer dans la sortie* n'est pas coché.
+3. **L'entrée n'envoie rien.** Au bout de deux secondes et demie de silence absolu,
+   l'application le dit. Pour un iPhone utilisé comme micro : il doit être déverrouillé,
+   à proximité, et ne pas déjà servir ailleurs.
+
+### Après une mise à jour, macOS redemande l'autorisation du micro
+
+C'est normal. L'application est compilée sur votre Mac et signée « à la volée », sans
+identifiant de développeur Apple : chaque reconstruction produit une signature
+différente, et macOS la considère comme une nouvelle application. Acceptez une fois de
+plus.
+
+### L'application reste bloquée sur son écran de chargement
+
+Au bout de neuf secondes, elle affiche de quelle sortie il s'agit. CoreAudio n'a pas de
+délai d'attente : un périphérique USB à moitié éteint, ou dont le câble a bougé, peut ne
+jamais répondre. Éteignez puis rallumez l'instrument, ou débranchez et rebranchez son
+câble — le démarrage reprend tout seul.
+
 ### Le micro siffle
 
 C'est un larsen : le micro réentend les haut-parleurs. Coupez **Envoyer dans la sortie**,
