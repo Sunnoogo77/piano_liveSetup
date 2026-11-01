@@ -91,8 +91,18 @@ l'écriture, trois cas de test se sont révélés faux alors que le code avait r
 
 ## Changer la palette
 
-`enum Tone` dans `Sources/UI/Design.swift`. Une seule couleur d'accent, et les
-couleurs vives réservées à l'information. Après modification, `make preview`.
+`enum Tone` dans `Sources/UI/Design.swift`, et les variables `--bg0…--t2` en haut
+de `Sources/Web/remote.css`. **Les deux doivent rester identiques** : l'application
+et la page sont le même outil, et une page qui dérive d'un ton finit par ne plus
+ressembler à rien.
+
+Les règles qui tiennent la palette — une rampe de gris froids, un seul accent, trois
+rôles de texte, les couleurs vives réservées à une mesure — sont écrites dans
+[AGENTS.md](../AGENTS.md) §4 bis. Lisez-les avant de changer une valeur : elles
+expliquent pourquoi le gris estompé est à 4,9:1 et pas plus bas.
+
+Après modification : `make build && make preview`, puis *regardez les PNG* — surtout
+`ui-min.png`, le rendu le plus étroit.
 
 ## Travailler sans casser votre installation de scène
 
