@@ -238,7 +238,13 @@ struct DevicesScreen: View {
                         .font(.system(size: 12)).foregroundStyle(Tone.txt1)
                 }
                 .toggleStyle(.switch).tint(Tone.accent)
-                .help("Message MIDI standard (CC 122), compris par tous les fabricants. Rétabli à la fermeture, et de toute façon oublié par l'instrument à l'extinction.")
+                .help("Message MIDI standard (CC 122). Rétabli à la fermeture, et de toute façon oublié par l'instrument à l'extinction.")
+                if m.localSilenced && !m.engine.midiSourceNames.isEmpty {
+                    // Le MIDI ne va que dans un sens ici : l'instrument n'accuse
+                    // pas réception, et tous ne reçoivent pas ce message. Dire
+                    // « coupé » serait une promesse que rien ne vérifie.
+                    note("Message envoyé — l'instrument ne répond pas pour dire s'il l'a suivi. S'il continue de jouer son propre son, cherchez « Local Control » dans ses réglages et mettez-le sur Off.")
+                }
                 if let err = m.engine.midiClientError {
                     Text(err).font(.system(size: 12)).foregroundStyle(Tone.hot)
                         .fixedSize(horizontal: false, vertical: true)

@@ -11,6 +11,38 @@ Pour passer à la dernière version : `./scripts/update.sh`
 
 ---
 
+## 1.4.1 — 2026-11-06
+
+Trois corrections trouvées en branchant un clavier d'une autre marque qu'au
+premier jour : une sortie audio qui n'en était pas une, une destination MIDI
+choisie au hasard, et une pastille qui promettait plus qu'elle ne savait.
+
+### Corrigé
+- **Une sortie audio fantôme disparaît de la liste.** macOS fabrique pour son
+  propre compte un agrégat privé — « CADefaultDeviceAggregate-… » — dès qu'une
+  application ouvre la sortie par défaut. Il n'est visible que dans le processus
+  qui l'a provoqué et ne mène qu'à un appareil déjà présent dans la liste : le
+  choisir coupait le son. Il est écarté, à sa marque officielle (la clé
+  « private » de sa composition), pas à son nom. Un agrégat créé par
+  l'utilisateur dans Configuration audio et MIDI reste proposé.
+- **La destination MIDI est celle du même appareil que le clavier, pas celle du
+  même nom.** Beaucoup d'instruments nomment leurs deux ports différemment — par
+  exemple « … KEYBOARD » pour ce que les touches envoient et « … SOUND » pour
+  leur générateur interne. L'ancienne recherche par nom ne trouvait rien et se
+  rabattait sur la première destination venue : avec deux instruments branchés,
+  elle coupait le son du mauvais.
+- **La pastille dit « Coupure demandée » et non « Son du piano coupé ».** Le
+  CC 122 part, mais l'instrument n'accuse pas réception et tous ne le reçoivent
+  pas — le tableau d'implémentation MIDI du Korg EK-50, par exemple, marque
+  « Local On/Off » comme non reçu. Le panneau Clavier le dit maintenant et
+  renvoie au réglage *Local Control* de l'instrument.
+
+### Modifié
+- Le guide de dépannage explique comment lire la ligne « Local On/Off » d'un
+  tableau d'implémentation MIDI, et donne le chemin exact sur trois instruments.
+
+---
+
 ## 1.4.0 — 2026-11-01
 
 La page de commande suit maintenant la **forme** de l'écran, et pas seulement sa

@@ -14,7 +14,30 @@ enum CA {
         AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size)
         var ids = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
         AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &ids)
-        return ids.compactMap { id in outChannels(id) > 0 ? (id, deviceName(id)) : nil }
+        return ids.compactMap { id in
+            outChannels(id) > 0 && !isPrivateAggregate(id) ? (id, deviceName(id)) : nil
+        }
+    }
+
+    /// macOS fabrique pour son propre compte un agrégat **privé** dès qu'une
+    /// application ouvre la sortie par défaut : il s'appelle
+    /// « CADefaultDeviceAggregate-… », il n'est visible que dans le processus
+    /// qui l'a provoqué, et il ne mène qu'à un appareil déjà présent dans la
+    /// liste. Le proposer, c'est offrir une porte de plus vers la même pièce —
+    /// et celle-là ne s'ouvre pas. Un agrégat que l'utilisateur a créé lui-même
+    /// dans Configuration audio et MIDI n'est pas privé : il reste proposé.
+    ///
+    /// `kAudioDevicePropertyIsHidden` vaut 0 sur ces agrégats : c'est la clé
+    /// « private » de leur composition qui les désigne, et elle seule.
+    static func isPrivateAggregate(_ id: AudioObjectID) -> Bool {
+        var a = AudioObjectPropertyAddress(mSelector: kAudioAggregateDevicePropertyComposition,
+                                           mScope: kAudioObjectPropertyScopeGlobal,
+                                           mElement: kAudioObjectPropertyElementMain)
+        var dict: Unmanaged<CFDictionary>?
+        var sz = UInt32(MemoryLayout<Unmanaged<CFDictionary>?>.size)
+        guard AudioObjectGetPropertyData(id, &a, 0, nil, &sz, &dict) == noErr,
+              let d = dict?.takeRetainedValue() as? [String: Any] else { return false }
+        return ((d["private"] as? NSNumber)?.intValue ?? 0) != 0
     }
 
     static func deviceName(_ id: AudioObjectID) -> String {
@@ -103,6 +126,22 @@ enum DevicePicker {
         guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &a, 0, nil, &sz, &id) == noErr
         else { return nil }
         return id
+    }
+
+    /// L'appareil physique auquel appartient un port MIDI. Deux ports du même
+    /// instrument partagent cet appareil, quels que soient leurs noms.
+    static func midiDevice(of endpoint: MIDIEndpointRef) -> MIDIDeviceRef? {
+        var entity = MIDIEntityRef()
+        guard MIDIEndpointGetEntity(endpoint, &entity) == noErr, entity != 0 else { return nil }
+        var device = MIDIDeviceRef()
+        guard MIDIEntityGetDevice(entity, &device) == noErr, device != 0 else { return nil }
+        return device
+    }
+
+    static func midiName(_ o: MIDIObjectRef) -> String {
+        var nm: Unmanaged<CFString>?
+        MIDIObjectGetStringProperty(o, kMIDIPropertyDisplayName, &nm)
+        return (nm?.takeRetainedValue() as String?) ?? ""
     }
 
     /// Les ports MIDI purement logiciels ne sont pas des claviers.
@@ -510,6 +549,7 @@ final class LiveEngine: @unchecked Sendable {
         guard midiIn != 0 else { return }
         let hadNoKeyboard = midiSourceNames.isEmpty
         var names: [String] = []
+        var sources: [MIDIEndpointRef] = []
         for i in 0..<MIDIGetNumberOfSources() {
             let src = MIDIGetSource(i)
             var nm: Unmanaged<CFString>?
@@ -517,6 +557,7 @@ final class LiveEngine: @unchecked Sendable {
             let name = (nm?.takeRetainedValue() as String?) ?? "MIDI \(i)"
             if DevicePicker.looksLikeSoftwarePort(name) { continue }
             names.append(name)
+            sources.append(src)
             if !connected.contains(src) {
                 if MIDIPortConnectSource(midiIn, src, nil) == noErr { connected.insert(src) }
             }
@@ -525,15 +566,29 @@ final class LiveEngine: @unchecked Sendable {
 
         pianoDestination = 0
         midiDestinationName = "—"
-        // On vise la destination qui porte le même nom que le clavier branché.
+        // On vise la destination qui appartient au **même appareil** que la
+        // source. Chercher le même nom ne suffit pas : beaucoup de claviers
+        // nomment leurs deux ports différemment — l'un pour ce que les touches
+        // envoient, l'autre pour leur générateur de son interne. Et se rabattre
+        // sur « la première destination venue » parle au mauvais instrument dès
+        // qu'il y en a deux branchés.
+        let sourceDevices = Set(sources.compactMap { DevicePicker.midiDevice(of: $0) })
         for i in 0..<MIDIGetNumberOfDestinations() {
             let d = MIDIGetDestination(i)
-            var nm: Unmanaged<CFString>?
-            MIDIObjectGetStringProperty(d, kMIDIPropertyDisplayName, &nm)
-            let n = (nm?.takeRetainedValue() as String?) ?? ""
+            let n = DevicePicker.midiName(d)
             if DevicePicker.looksLikeSoftwarePort(n) { continue }
-            if names.contains(where: { $0.caseInsensitiveCompare(n) == .orderedSame }) {
+            if let dev = DevicePicker.midiDevice(of: d), sourceDevices.contains(dev) {
                 pianoDestination = d; midiDestinationName = n; break
+            }
+        }
+        if pianoDestination == 0 {
+            for i in 0..<MIDIGetNumberOfDestinations() {
+                let d = MIDIGetDestination(i)
+                let n = DevicePicker.midiName(d)
+                if DevicePicker.looksLikeSoftwarePort(n) { continue }
+                if names.contains(where: { $0.caseInsensitiveCompare(n) == .orderedSame }) {
+                    pianoDestination = d; midiDestinationName = n; break
+                }
             }
         }
         if pianoDestination == 0, MIDIGetNumberOfDestinations() > 0 {

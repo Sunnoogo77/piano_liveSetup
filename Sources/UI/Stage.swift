@@ -483,7 +483,11 @@ struct StageView: View {
                 HStack(spacing: 6) {
                     Image(systemName: m.localSilenced ? "speaker.slash.fill" : "speaker.fill")
                         .font(.system(size: 11, weight: .medium))
-                    Text(m.localSilenced ? "Son du piano coupé" : "Son du piano actif")
+                    // « Coupure demandée » et non « coupé » : le message part,
+                    // l'instrument n'accuse pas réception, et tous ne le
+                    // reçoivent pas. Voir le panneau Clavier de l'onglet
+                    // Périphériques.
+                    Text(m.localSilenced ? "Coupure demandée" : "Son du piano actif")
                         .font(.system(size: 11, weight: .medium))
                 }
                 .padding(.horizontal, 12).padding(.vertical, 6)

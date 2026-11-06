@@ -8,14 +8,31 @@
    casque n'est branché dessus.
 3. Le curseur **Volume général** de l'onglet Jeu n'est pas à zéro ?
 
-### J'entends deux sons différents quand je transpose
+### Le clavier joue son propre son en plus du Mac
 
-C'est le son interne du clavier qui joue en plus du Mac. La pastille en bas à droite doit
-afficher « Son du piano coupé » — sinon cliquez dessus, ou appuyez sur `L`.
+Le symptôme : vous choisissez un piano électrique dans l'application, le Mac le joue,
+mais les haut-parleurs du clavier continuent de sortir leur son d'origine. Pareil quand
+vous transposez : vous entendez deux hauteurs.
 
-Si votre clavier ne répond pas au CC 122, cherchez « Local Control » ou « Local Off » dans
-ses menus. Sur un Yamaha YDP-145 : maintenir **[DEMO/SONG] + [PIANO/VOICE]**, puis appuyer
-sur la touche **Si3**.
+L'application envoie le **CC 122** (Local Control Off), un message MIDI standard. La
+pastille en bas à droite affiche alors « Coupure demandée » — demandée, car le MIDI ne va
+que dans un sens ici : **l'instrument n'accuse pas réception, et tous ne reçoivent pas ce
+message.** Son tableau d'implémentation MIDI, à la fin de son manuel, le dit : cherchez la
+ligne « Local On/Off ». Un `X` en colonne « reçu » veut dire que l'application parle dans
+le vide, et qu'il n'y a rien à corriger côté Mac.
+
+Dans ce cas, le réglage est sur l'instrument. Cherchez **« Local Control »** ou
+**« Local Off »** dans ses menus, et mettez-le sur **Off**. Trois exemples réels :
+
+| Instrument | Chemin |
+|---|---|
+| Korg EK-50 | **SETTING**, paramètre **P.12 « Local Control »** → **Off** (reçu : non) |
+| Yamaha YDP-145 | maintenir **[DEMO/SONG] + [PIANO/VOICE]**, puis la touche **Si3** |
+| La plupart des claviers de scène | menu *Global*, *System* ou *MIDI* → *Local Control* |
+
+C'est à refaire après chaque extinction sur beaucoup d'instruments : le réglage n'est pas
+toujours mémorisé. À défaut, le volume du clavier à zéro fait le même travail, et vous
+écoutez la sortie du Mac.
 
 ### Mon piano n'est pas détecté
 
