@@ -11,6 +11,36 @@ Pour passer à la dernière version : `./scripts/update.sh`
 
 ---
 
+## 1.4.2 — 2026-11-06
+
+Préparer une sortie qu'on ne connaît pas encore : une chapelle, un piano d'une
+autre marque, une interface USB vers une table de mixage.
+
+### Corrigé
+- **Une interface qui refuse 128 échantillons ne reste plus muette.**
+  Beaucoup d'appareils — interfaces USB, sorties HDMI — acceptent sans broncher
+  une taille de tampon qu'ils ne savent pas tenir, puis ne font jamais tourner
+  le rendu : aucune erreur, aucun son. L'application demande maintenant à
+  l'appareil la plage qu'il accepte (`kAudioDevicePropertyBufferFrameSizeRange`)
+  et s'y cale ; au deuxième essai, elle lui rend la taille qu'il avait. Quand
+  elle a dû changer la valeur, elle l'écrit dans l'onglet Périphériques.
+- **Une sortie qui ne démarre pas ne coupe plus le son.** L'application revient
+  à celle qui marchait et dit pourquoi, au lieu de laisser le rig muet avec le
+  nom du périphérique fautif enregistré pour le prochain lancement.
+
+### Modifié
+- Le README ne dit plus que l'application « coupe » le son interne du clavier,
+  mais qu'elle le **demande** — et renvoie au réglage *Local Control* de
+  l'instrument pour ceux qui ne reçoivent pas le message.
+- Le guide de dépannage gagne une entrée : « Je choisis une interface USB et il
+  n'y a pas de son ».
+
+### Vérifié
+- `make test-audio` passe en entier pour la première fois **avec un clavier
+  branché** : le test 9, « Pilotage du son interne du piano », ne saute plus.
+
+---
+
 ## 1.4.1 — 2026-11-06
 
 Trois corrections trouvées en branchant un clavier d'une autre marque qu'au

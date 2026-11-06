@@ -52,10 +52,17 @@ sound banks.
 Yamaha, Korg, Roland, Casio, Nord — and whether you plug it in before or after
 launching. Many digital pianos present themselves to the Mac both as a MIDI port and
 as a sound card under the same name; when the app sees that, it sends the sound back
-into the instrument's own speakers through the same cable. It also silences the
-keyboard's internal engine (CC 122, a standard MIDI message) so you don't hear two
-pitches when you transpose — and restores it on quit. No setting on the instrument is
-ever changed.
+into the instrument's own speakers through the same cable. It also **asks** the
+keyboard to silence its internal engine (CC 122, a standard MIDI message) so you don't
+hear two pitches when you transpose — and restores it on quit. No setting on the
+instrument is ever changed. Not every keyboard receives that message: if yours keeps
+playing its own sound, its *Local Control* setting lives on the instrument, and
+[the troubleshooting guide](docs/TROUBLESHOOTING.md) gives the path for three models.
+
+**Any output will do** — the Mac's speakers, a USB interface feeding a mixing desk, a
+piano's own sound card. The app settles for the buffer size the device accepts instead of
+forcing its own, and if an output refuses to start it goes back to the one that worked
+rather than leaving you silent.
 
 **51 calibrated sounds, in ten families.** Six acoustic pianos, six electric, five
 organs, six pads — and, for anyone who wants to leave the piano behind: five bowed

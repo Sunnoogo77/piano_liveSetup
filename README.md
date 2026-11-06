@@ -66,9 +66,17 @@ vous jouez sur le clavier, vous entendez le Mac **dans les haut-parleurs du pian
 le même câble. Sinon elle prend la sortie par défaut, et vous pouvez en changer à tout
 moment.
 
-Elle coupe aussi le son interne du clavier (CC 122, un message MIDI standard) pour que
-vous n'entendiez pas deux hauteurs quand vous transposez — et le rétablit en se fermant.
-Aucun réglage n'est modifié sur l'instrument.
+Elle **demande** aussi au clavier de couper son son interne (CC 122, un message MIDI
+standard) pour que vous n'entendiez pas deux hauteurs quand vous transposez — et le
+rétablit en se fermant. Aucun réglage n'est modifié sur l'instrument. Tous les claviers
+ne reçoivent pas ce message : si le vôtre continue de jouer son propre son, son réglage
+*Local Control* est sur l'instrument, et
+[le guide de dépannage](docs/TROUBLESHOOTING.md) donne le chemin pour trois modèles.
+
+**N'importe quelle sortie fait l'affaire** : les haut-parleurs du Mac, une interface USB
+vers une table de mixage, la carte son d'un piano. L'application se cale sur la taille de
+tampon que l'appareil accepte au lieu de lui imposer la sienne, et si une sortie refuse de
+démarrer, elle revient à celle qui marchait plutôt que de vous laisser muet.
 
 ### 51 sons, en dix familles
 

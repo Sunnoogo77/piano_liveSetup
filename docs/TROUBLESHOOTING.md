@@ -56,6 +56,18 @@ jusqu'à quatre fois. Si malgré tout elle affiche « la sortie ne démarre pas 
 qu'une autre application tient le périphérique — fermez-la, ou choisissez une autre
 sortie dans l'onglet Périphériques.
 
+### Je choisis une interface USB et il n'y a pas de son
+
+Beaucoup d'appareils acceptent sans broncher une taille de tampon qu'ils ne savent pas
+tenir, puis ne rendent jamais rien : on n'entend rien et rien ne le dit. L'application
+demande désormais à l'appareil la plage qu'il accepte et s'y cale ; au deuxième essai elle
+lui rend même la taille qu'il avait. Si elle a dû changer la valeur, elle l'écrit dans
+l'onglet Périphériques.
+
+Et si une sortie ne démarre toujours pas, **elle revient à celle qui marchait** au lieu de
+vous laisser muet : le message le dit, et vous continuez à jouer pendant que vous
+cherchez. Sur scène, c'est la seule attitude acceptable.
+
 ### L'application met longtemps à s'ouvrir
 
 C'est normal : 1,5 Go d'échantillons passent en mémoire au lancement, dont un piano à

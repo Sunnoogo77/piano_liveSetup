@@ -83,6 +83,26 @@ enum CA {
         return v
     }
 
+    /// La plage de tampons que l'appareil annonce savoir faire. Hors de cette
+    /// plage, beaucoup d'appareils acceptent la consigne sans erreur puis ne
+    /// font jamais tourner le rendu : on n'entend rien, et rien ne le dit.
+    static func bufferFrameRange(_ id: AudioObjectID) -> ClosedRange<UInt32>? {
+        var a = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyBufferFrameSizeRange,
+                                           mScope: kAudioObjectPropertyScopeGlobal,
+                                           mElement: kAudioObjectPropertyElementMain)
+        var r = AudioValueRange()
+        var sz = UInt32(MemoryLayout<AudioValueRange>.size)
+        guard AudioObjectGetPropertyData(id, &a, 0, nil, &sz, &r) == noErr,
+              r.mMinimum > 0, r.mMaximum >= r.mMinimum else { return nil }
+        return UInt32(r.mMinimum)...UInt32(r.mMaximum)
+    }
+
+    /// La taille demandée, ramenée dans ce que l'appareil accepte.
+    static func clampBufferFrames(_ id: AudioObjectID, _ wanted: UInt32) -> UInt32 {
+        guard let r = bufferFrameRange(id) else { return wanted }
+        return min(max(wanted, r.lowerBound), r.upperBound)
+    }
+
     @discardableResult
     static func setBufferFrames(_ id: AudioObjectID, _ frames: UInt32) -> Bool {
         var a = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyBufferFrameSize,
@@ -308,7 +328,12 @@ final class LiveEngine: @unchecked Sendable {
 
         let out = engine.outputNode
         try out.auAudioUnit.setDeviceID(deviceID)
-        CA.setBufferFrames(deviceID, config.bufferFrames)
+        let asked = config.bufferFrames
+        let frames = CA.clampBufferFrames(deviceID, asked)
+        CA.setBufferFrames(deviceID, frames)
+        if frames != asked {
+            lastSwitchNote = "« \(target.1) » n'accepte pas \(asked) échantillons : tampon porté à \(frames)."
+        }
         let sr = CA.sampleRate(deviceID)
         sampleRate = sr
         guard let fmt = AVAudioFormat(standardFormatWithSampleRate: sr, channels: 2) else {
@@ -369,7 +394,12 @@ final class LiveEngine: @unchecked Sendable {
             if renderCount.pointee > 0 { break }
             engine.stop()
             guard attempt < 4 else {
-                throw Err("la sortie « \(target.1) » ne démarre pas — elle est peut-être encore utilisée par une autre application")
+                throw Err("la sortie « \(target.1) » ne démarre pas — elle est peut-être encore utilisée par une autre application, ou elle refuse la taille de tampon demandée")
+            }
+            // Au deuxième essai, on lui rend la taille de tampon qu'elle avait :
+            // certaines sorties acceptent la consigne puis ne rendent rien.
+            if attempt == 1, originalBufferFrames > 0 {
+                CA.setBufferFrames(deviceID, originalBufferFrames)
             }
             usleep(300_000)
         }
@@ -963,12 +993,24 @@ final class LiveEngine: @unchecked Sendable {
     /// depuis un outil en ligne de commande, où c'est sans conséquence).
     func switchAudioDevice(named name: String) -> Bool {
         guard let target = CA.outputDevices().first(where: { $0.1 == name }) else { return false }
+        let previous = config.audioDeviceName
         panic()
         engine.stop()
         if originalBufferFrames > 0 { CA.setBufferFrames(deviceID, originalBufferFrames) }
         if let node = sourceNode { engine.detach(node); sourceNode = nil }
         config.audioDeviceName = name
-        do { try startAudio() } catch { return false }
+        do { try startAudio() } catch {
+            // Sur scène, un essai malheureux ne doit pas couper le son : on
+            // revient à la sortie qui marchait, et on dit ce qui s'est passé.
+            let why = error.localizedDescription
+            config.audioDeviceName = previous
+            if let node = sourceNode { engine.detach(node); sourceNode = nil }
+            try? startAudio()
+            selectPreset(presetIndex)
+            if mic.running { _ = mic.start(deviceID: mic.deviceID, outputSampleRate: sampleRate) }
+            lastSwitchNote = "« \(name) » n'a pas démarré (\(why)) — retour sur « \(audioDeviceLabel) »."
+            return false
+        }
         selectPreset(presetIndex)
         if mic.running { _ = mic.start(deviceID: mic.deviceID, outputSampleRate: sampleRate) }
         _ = target
