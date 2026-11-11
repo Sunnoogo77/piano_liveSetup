@@ -36,6 +36,10 @@ calibrate:          ## Recalculer l'équilibre des sons
 preview:            ## Rendre l'interface en PNG dans build/ui
 	@mkdir -p build/ui && ./build/bin/preview build/ui
 
+doctor:             ## Dire ce que le Mac voit : MIDI, USB, sorties audio
+	@[ -x build/bin/doctor ] || ./scripts/build.sh >/dev/null
+	@./build/bin/doctor
+
 run:                ## Lancer l'app construite
 	open "build/Piano Live Setup.app"
 

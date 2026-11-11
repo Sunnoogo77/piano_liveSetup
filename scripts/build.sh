@@ -60,6 +60,7 @@ swiftc "${FLAGS[@]}" Sources/Core/Model.swift Sources/Core/DSP.swift Sources/Cor
        Sources/Core/Recording.swift Sources/Tools/RecTest/main.swift            -o "$BIN/rectest"
 swiftc "${FLAGS[@]}" "$GEN/Version.swift" Sources/Core/Update.swift \
        Sources/Tools/VersionTest/main.swift                                     -o "$BIN/versiontest"
+swiftc "${FLAGS[@]}" Sources/Tools/Doctor/main.swift                            -o "$BIN/doctor"
 
 echo "→ bundle"
 rm -rf "$APP"

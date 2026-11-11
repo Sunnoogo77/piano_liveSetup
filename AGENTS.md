@@ -390,6 +390,13 @@ qui ressemble à un serveur muet.
 
 ## 6. Tâches courantes
 
+**Un instrument n'apparaît pas** → `make doctor` avant toute autre chose. Il dit ce que
+le Mac voit : les ports MIDI et quelle destination répond à quelle source, les appareils
+USB avec leurs classes d'interface, les sorties audio et la plage de tampon qu'elles
+acceptent. Un instrument présent sur le bus USB mais dont toutes les interfaces sont de
+classe 255 est propriétaire : il demande le pilote de son fabricant, et aucun code de ce
+dépôt n'y changera rien. La réponse est alors sa prise MIDI DIN et un boîtier USB-MIDI.
+
 **Ajouter un son** → `Library.all()` dans `Model.swift`, puis `make calibrate`, puis
 `make test-audio` pour vérifier qu'il n'est pas muet.
 
