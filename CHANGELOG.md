@@ -11,6 +11,26 @@ Pour passer à la dernière version : `./scripts/update.sh`
 
 ---
 
+## 1.6.0 — 2026-11-11
+
+### Ajouté
+- **L'application nomme l'instrument que macOS ne sait pas lire.** Quand aucun
+  clavier n'est détecté, le panneau Clavier regarde le bus USB : un appareil
+  dont toutes les interfaces sont propriétaires (classe 255), sans interface
+  MIDI normalisée, est affiché par son nom avec ce qu'il faut faire — le pilote
+  USB de son fabricant, ou un boîtier USB-MIDI sur sa prise DIN. « Aucun clavier
+  détecté » envoyait chercher un câble qui n'était pas en cause.
+  Aucune marque n'est codée en dur : l'application lit ce que l'appareil déclare.
+- Le scan USB est partagé entre l'application et `make doctor`
+  (`Sources/Core/USBDevices.swift`).
+
+> **Pourquoi l'application ne télécharge pas ces pilotes :** ce sont des
+> extensions noyau, elles demandent un mot de passe administrateur et, sur Mac
+> Apple Silicon, un démarrage en mode Recovery avec la sécurité abaissée. Ce
+> n'est pas une installation qu'un logiciel doit faire à votre place.
+
+---
+
 ## 1.5.0 — 2026-11-11
 
 Deux soirs passés à chercher pourquoi un instrument n'apparaissait pas ont

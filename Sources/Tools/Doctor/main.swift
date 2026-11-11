@@ -2,8 +2,6 @@ import AVFoundation
 import CoreAudio
 import CoreMIDI
 import Foundation
-import IOKit
-import IOKit.usb
 
 // Que voit le Mac, au juste ?
 //
@@ -87,59 +85,6 @@ func audioDevices() -> [AudioObjectID] {
     return ids
 }
 
-// MARK: - USB
-
-struct USBDevice {
-    let name: String
-    let vendor: String
-    /// Vrai quand l'appareil expose une interface audio normalisée dont le
-    /// sous-ensemble est « MIDI Streaming ». C'est ce que macOS sait lire
-    /// sans rien installer.
-    var hasStandardMIDI = false
-    var interfaceClasses: [Int] = []
-}
-
-func usbDevices() -> [USBDevice] {
-    var found: [USBDevice] = []
-    var iterator = io_iterator_t()
-    guard let match = IOServiceMatching(kIOUSBDeviceClassName) else { return [] }
-    guard IOServiceGetMatchingServices(kIOMainPortDefault, match, &iterator) == KERN_SUCCESS
-    else { return [] }
-    defer { IOObjectRelease(iterator) }
-
-    func string(_ obj: io_object_t, _ key: String) -> String? {
-        guard let v = IORegistryEntryCreateCFProperty(obj, key as CFString, kCFAllocatorDefault, 0)
-        else { return nil }
-        return v.takeRetainedValue() as? String
-    }
-    func number(_ obj: io_object_t, _ key: String) -> Int? {
-        guard let v = IORegistryEntryCreateCFProperty(obj, key as CFString, kCFAllocatorDefault, 0)
-        else { return nil }
-        return (v.takeRetainedValue() as? NSNumber)?.intValue
-    }
-
-    while case let device = IOIteratorNext(iterator), device != 0 {
-        defer { IOObjectRelease(device) }
-        guard let name = string(device, "USB Product Name") else { continue }
-        var d = USBDevice(name: name, vendor: string(device, "USB Vendor Name") ?? "—")
-
-        // Les interfaces sont les enfants du nœud de l'appareil.
-        var children = io_iterator_t()
-        if IORegistryEntryGetChildIterator(device, kIOServicePlane, &children) == KERN_SUCCESS {
-            defer { IOObjectRelease(children) }
-            while case let child = IOIteratorNext(children), child != 0 {
-                defer { IOObjectRelease(child) }
-                guard let cls = number(child, "bInterfaceClass") else { continue }
-                d.interfaceClasses.append(cls)
-                // Classe 1 = Audio, sous-classe 3 = MIDI Streaming.
-                if cls == 1, number(child, "bInterfaceSubClass") == 3 { d.hasStandardMIDI = true }
-            }
-        }
-        found.append(d)
-    }
-    return found
-}
-
 // MARK: - Rapport
 
 func title(_ s: String) {
@@ -172,11 +117,11 @@ for i in 0..<destCount {
 }
 
 title("Appareils USB")
-let usb = usbDevices()
+let usb = USBScan.devices()
 if usb.isEmpty {
     print("  rien sur le bus USB")
 }
-for d in usb.sorted(by: { $0.name < $1.name }) {
+for d in usb {
     let classes = Set(d.interfaceClasses).sorted().map(String.init).joined(separator: ", ")
     print("  \(d.name)  —  \(d.vendor)")
     print("    interfaces de classe : \(classes.isEmpty ? "aucune lue" : classes)")

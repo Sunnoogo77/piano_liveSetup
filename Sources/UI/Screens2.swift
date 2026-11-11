@@ -226,6 +226,11 @@ struct DevicesScreen: View {
                 if m.engine.midiSourceNames.isEmpty {
                     row("exclamationmark.triangle", "Aucun clavier détecté", Tone.warn)
                     note("Branchez le piano en USB et allumez-le : il est pris tout seul, son interne coupé, sortie basculée dessus s'il sait la recevoir.")
+                    ForEach(m.usbUnreadable, id: \.name) { d in
+                        Divider().overlay(Tone.line)
+                        row("cable.connector", "« \(d.name) » est branché", Tone.warn)
+                        note("Branché, mais il ne parle pas le MIDI standard : il lui faut le pilote USB de \(d.vendor), ou un boîtier USB-MIDI sur sa prise DIN. Rien à corriger ici.")
+                    }
                 } else {
                     ForEach(m.engine.midiSourceNames, id: \.self) { n in
                         row("pianokeys", n, Tone.ok)

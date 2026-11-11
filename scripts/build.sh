@@ -23,7 +23,7 @@ FLAGS=(-O -swift-version 5 -import-objc-header Sources/fluid-bridge.h
 
 CORE=("$GEN/Version.swift" Sources/Core/Model.swift Sources/Core/DSP.swift
       Sources/Core/Chords.swift Sources/Core/Recording.swift Sources/Core/Mic.swift
-      Sources/Core/Engine.swift Sources/Core/Update.swift
+      Sources/Core/Engine.swift Sources/Core/Update.swift Sources/Core/USBDevices.swift
       Sources/Core/RemoteServer.swift "$GEN/WebAssets.swift")
 UI=(Sources/UI/Design.swift Sources/UI/Controls.swift Sources/UI/Analyzer.swift
     Sources/UI/App.swift Sources/UI/Stage.swift Sources/UI/Screens.swift Sources/UI/Screens2.swift)
@@ -60,7 +60,7 @@ swiftc "${FLAGS[@]}" Sources/Core/Model.swift Sources/Core/DSP.swift Sources/Cor
        Sources/Core/Recording.swift Sources/Tools/RecTest/main.swift            -o "$BIN/rectest"
 swiftc "${FLAGS[@]}" "$GEN/Version.swift" Sources/Core/Update.swift \
        Sources/Tools/VersionTest/main.swift                                     -o "$BIN/versiontest"
-swiftc "${FLAGS[@]}" Sources/Tools/Doctor/main.swift                            -o "$BIN/doctor"
+swiftc "${FLAGS[@]}" Sources/Core/USBDevices.swift Sources/Tools/Doctor/main.swift -o "$BIN/doctor"
 
 echo "→ bundle"
 rm -rf "$APP"

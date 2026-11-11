@@ -93,6 +93,7 @@ final class RigModel: ObservableObject {
     @Published var micBands: [EQBand] = micDefaultEQ()
     @Published var micSelectedBand = 2
     @Published var micPeakDB: Float = -60
+    @Published var usbUnreadable: [USBDevice] = []
     @Published var micMessage: String?
     @Published var micAuth = MicPermission.status
     /// Le périphérique est ouvert mais n'envoie que des zéros.
@@ -619,6 +620,9 @@ final class RigModel: ObservableObject {
 
     func refreshDevices() {
         audioDevices = CA.outputDevices().map { $0.1 }
+        // Un instrument branché que macOS ne sait pas lire : on le nomme, au
+        // lieu de laisser « aucun clavier détecté » envoyer chercher un câble.
+        usbUnreadable = USBScan.proprietaryInstruments()
         micDevices = MicInput.inputDevices().map { (id: UInt32($0.0), name: $0.1) }
         if micDeviceID == 0, let first = micDevices.first { micDeviceID = first.id }
     }
