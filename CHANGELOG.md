@@ -11,6 +11,33 @@ Pour passer à la dernière version : `./scripts/update.sh`
 
 ---
 
+## 1.5.0 — 2026-11-11
+
+Deux soirs passés à chercher pourquoi un instrument n'apparaissait pas ont
+donné une commande qui répond en dix secondes.
+
+### Ajouté
+- **`make doctor` — dire ce que le Mac voit, sans jouer une note.** Les ports
+  MIDI, en appariant chaque source à la destination du même appareil physique ;
+  les appareils USB avec leurs classes d'interface ; les sorties audio avec la
+  plage de tampon qu'elles acceptent vraiment. C'est le premier réflexe quand un
+  instrument n'apparaît pas, et il ne modifie rien.
+  - Des interfaces **toutes de classe 255** veulent dire instrument propriétaire :
+    il demande le pilote de son fabricant, et aucun code de ce dépôt n'y changera
+    rien. La réponse est sa prise MIDI DIN et un boîtier USB-MIDI.
+  - Une interface **1/3 sans 1/2** veut dire MIDI oui, audio non : le son du Mac
+    devra sortir par un câble audio.
+
+### Modifié
+- Le README et le guide de dépannage distinguent enfin les deux familles
+  d'instruments : celui qui est aussi une carte son USB — un seul câble fait
+  tout — et le clavier de scène, dont le câble USB ne porte que du MIDI. Trois
+  montages sont donnés pour le second, avec ce que chacun apporte.
+- Le guide rappelle que brancher un câble dans la prise casque du Mac crée un
+  périphérique de plus, et que l'application ne bascule pas dessus toute seule.
+
+---
+
 ## 1.4.2 — 2026-11-06
 
 Préparer une sortie qu'on ne connaît pas encore : une chapelle, un piano d'une

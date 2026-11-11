@@ -73,6 +73,20 @@ ne reçoivent pas ce message : si le vôtre continue de jouer son propre son, so
 *Local Control* est sur l'instrument, et
 [le guide de dépannage](docs/TROUBLESHOOTING.md) donne le chemin pour trois modèles.
 
+**Un clavier de scène, lui, n'a ni haut-parleurs ni carte son USB** — un Nord, un
+Montage, un Kurzweil. Son câble USB ne transporte que du MIDI : les touches montent vers
+le Mac, et le son redescend par un **câble audio séparé**. Trois montages, du plus simple
+au plus solide :
+
+| Montage | Ce qu'il apporte |
+|---|---|
+| Sortie casque du Mac → entrée *Monitor In* / *Aux In* du clavier | Rien à acheter : le son du Mac ressort par les sorties du clavier, mêlé aux siennes. |
+| Sortie casque du Mac → table de mixage | Le niveau du Mac ne dépend plus de celui du clavier. |
+| Petite interface audio USB → table de mixage | Le meilleur niveau, et une sortie qui ne bouge pas quand on branche un casque. |
+
+`make doctor` dit dans quel monde vous êtes : **si l'instrument n'apparaît pas sous
+« Sorties audio », c'est qu'il ne sait pas recevoir de son par l'USB.**
+
 **N'importe quelle sortie fait l'affaire** : les haut-parleurs du Mac, une interface USB
 vers une table de mixage, la carte son d'un piano. L'application se cale sur la taille de
 tampon que l'appareil accepte au lieu de lui imposer la sienne, et si une sortie refuse de
@@ -223,6 +237,7 @@ tablette, y compris le choix de l'entrée.
 | `make test` | tests sans matériel (accords, formats d'export) |
 | `make test-audio` | tous les tests, y compris ceux qui jouent du son |
 | `make calibrate` | recalculer l'équilibre des sons après modification |
+| `make doctor` | dire ce que le Mac voit : MIDI, USB, sorties audio |
 | `make preview` | rendre l'interface en PNG, sans ouvrir l'app |
 | `make portable` | vérifier que le cœur compile sans framework Apple |
 | `./scripts/uninstall.sh` | retirer l'application |

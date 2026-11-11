@@ -8,6 +8,35 @@
    casque n'est branché dessus.
 3. Le curseur **Volume général** de l'onglet Jeu n'est pas à zéro ?
 
+### Le son ne sort que du Mac — je veux l'entendre par le piano ou la sono
+
+Deux familles d'instruments, deux montages. `make doctor` dit laquelle est la vôtre.
+
+**Le piano est aussi une carte son USB.** C'est le cas de beaucoup de pianos de salon. Il
+apparaît alors sous « Sorties audio » dans l'onglet Périphériques : choisissez-le, et le
+son du Mac repart dans ses haut-parleurs par le câble qui porte déjà le MIDI. Un seul
+câble fait tout.
+
+**Le clavier ne fait que du MIDI.** C'est le cas des claviers de scène, qui n'ont souvent
+pas de haut-parleurs. `make doctor` le montre : ses interfaces USB sont de classe 1/1
+(contrôle) et 1/3 (MIDI), **sans 1/2 (audio)**. Le son du Mac doit alors sortir par un
+câble audio :
+
+| Montage | Ce qu'il apporte |
+|---|---|
+| Casque du Mac → *Monitor In* / *Aux In* du clavier | Rien à acheter ; le son ressort par les sorties du clavier. |
+| Casque du Mac → table de mixage | Niveau du Mac indépendant de celui du clavier. |
+| Interface audio USB → table de mixage | Le meilleur niveau, et rien ne bouge si on branche un casque. |
+
+Deux pièges du premier montage : sur beaucoup d'instruments le **volume général ne règle
+pas** l'entrée Monitor — le niveau se fait sur le Mac ; et cette entrée n'arrive pas
+toujours jusqu'aux sorties ligne. Le manuel de l'instrument le dit (sur un Nord Electro 6,
+elle y arrive).
+
+**Dans les deux cas, choisissez la sortie dans l'onglet Périphériques.** Brancher un câble
+dans la prise casque du Mac crée un périphérique de plus : l'application reste sur celui
+que vous aviez retenu et ne bascule pas toute seule.
+
 ### Le clavier joue son propre son en plus du Mac
 
 Le symptôme : vous choisissez un piano électrique dans l'application, le Mac le joue,
