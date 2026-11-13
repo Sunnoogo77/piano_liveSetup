@@ -127,7 +127,7 @@ for d in usb {
     print("    interfaces de classe : \(classes.isEmpty ? "aucune lue" : classes)")
     if d.hasStandardMIDI {
         print("    MIDI normalisé : oui — macOS le lit sans rien installer")
-    } else if d.interfaceClasses.contains(255) {
+    } else if d.looksProprietary {
         print("    MIDI normalisé : NON, interfaces propriétaires (classe 255).")
         print("    → cet instrument demande le pilote USB de son fabricant, ou")
         print("      bien branchez sa prise MIDI DIN sur un boîtier USB-MIDI.")

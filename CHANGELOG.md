@@ -11,6 +11,20 @@ Pour passer à la dernière version : `./scripts/update.sh`
 
 ---
 
+## 1.6.1 — 2026-11-13
+
+### Corrigé
+- **Le filtre ajouté en 1.6.0 écartait l'instrument pour lequel il existait.**
+  Il exigeait que *toutes* les interfaces USB soient propriétaires ; un Yamaha
+  MOXF en expose aussi une de classe 3 (HID), et n'était donc pas signalé. Il
+  suffit maintenant d'une interface propriétaire sans interface MIDI
+  normalisée, en écartant ce qui ne peut pas être un instrument (réseau,
+  imprimante, clé, concentrateur, webcam).
+- `make doctor` et l'application jugent avec la même règle : lancer l'outil
+  vérifie désormais ce que l'application affichera.
+
+---
+
 ## 1.6.0 — 2026-11-11
 
 ### Ajouté

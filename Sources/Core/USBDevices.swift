@@ -22,12 +22,19 @@ struct USBDevice: Equatable {
     /// « Audio Streaming » : il sait alors recevoir ou émettre du son par USB.
     let hasUSBAudio: Bool
 
-    /// Un appareil dont toutes les interfaces sont propriétaires (classe 255),
-    /// sans interface MIDI normalisée. C'est la signature d'un instrument qui
-    /// réclame le pilote de son fabricant.
+    /// Un appareil qui expose du propriétaire (classe 255) sans interface MIDI
+    /// normalisée : la signature d'un instrument qui réclame le pilote de son
+    /// fabricant.
+    ///
+    /// On n'exige pas que *toutes* ses interfaces soient propriétaires : un
+    /// Yamaha MOXF en expose aussi une de classe 3 (HID), et le filtre strict
+    /// l'écartait — lui précisément, l'instrument pour lequel ce test existe.
+    /// On écarte en revanche ce qui ne peut pas être un instrument.
     var looksProprietary: Bool {
-        !hasStandardMIDI && interfaceClasses.contains(255)
-            && interfaceClasses.allSatisfy { $0 == 255 || $0 == 1 }
+        guard !hasStandardMIDI, interfaceClasses.contains(255) else { return false }
+        // Réseau, imprimante, clé, concentrateur, webcam, sans-fil : pas un piano.
+        let notAnInstrument: Set<Int> = [2, 6, 7, 8, 9, 10, 14, 224]
+        return !interfaceClasses.contains { notAnInstrument.contains($0) }
     }
 }
 
